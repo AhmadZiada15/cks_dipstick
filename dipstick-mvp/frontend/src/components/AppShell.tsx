@@ -52,7 +52,7 @@ export default function AppShell({
             ) : (
               <div style={{ width: 40 }} />
             )}
-            <span style={styles.headerTitle}>{title ?? 'DipCheck'}</span>
+            <span style={styles.headerTitle}>{title ?? 'UroSense'}</span>
             <div style={{ width: 40 }} />
           </header>
         )}
@@ -72,7 +72,7 @@ export default function AppShell({
 const styles: Record<string, React.CSSProperties> = {
   outerWrapper: {
     minHeight: '100vh',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F0F4F8',
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'center',
@@ -93,7 +93,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statusBar: {
     height: '44px',
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#0F2744',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -113,7 +113,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     height: '56px',
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#FFFFFF',
+    borderBottom: '1px solid #F1F5F9',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -125,9 +126,9 @@ const styles: Record<string, React.CSSProperties> = {
     width: '40px',
     height: '40px',
     border: 'none',
-    background: 'rgba(255,255,255,0.15)',
+    background: '#F1F5F9',
     borderRadius: '50%',
-    color: '#FFFFFF',
+    color: '#1E293B',
     fontSize: '20px',
     cursor: 'pointer',
     display: 'flex',
@@ -135,7 +136,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
   },
   headerTitle: {
-    color: '#FFFFFF',
+    color: '#1E293B',
     fontSize: '17px',
     fontWeight: 700,
     letterSpacing: '0.3px',

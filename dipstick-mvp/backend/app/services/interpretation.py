@@ -23,7 +23,7 @@ Disclaimer: This logic is intended for screening/education only,
 from typing import List, Optional
 from app.models.dipstick import (
     DipstickValues, SemiQuant, NitriteResult, UrgencyLevel,
-    ClinicalFlag, InterpretationResult,
+    ClinicalFlag, InterpretationResult, ClinicalIntake,
 )
 
 
@@ -510,10 +510,65 @@ def _build_actions_and_why(
 
 
 # ---------------------------------------------------------------------------
+# Screening pathway routing
+# ---------------------------------------------------------------------------
+
+def derive_screening_pathway(intake: Optional[ClinicalIntake]) -> str:
+    """
+    Determine the primary screening pathway based on clinical intake.
+    Returns: 'ckd' | 'uti' | 'diabetes' | 'mixed' | 'general'
+    """
+    if intake is None:
+        return "general"
+    if intake.is_pregnant:
+        return "mixed"
+    if intake.has_diabetes and intake.has_hypertension:
+        return "ckd"
+    if intake.has_diabetes:
+        return "mixed"
+    if intake.has_frequent_utis or intake.symptom_burning_urination or intake.symptom_pelvic_pain:
+        return "uti"
+    if intake.has_hypertension or intake.has_ckd_family_history:
+        return "ckd"
+    if intake.symptom_swelling or intake.symptom_foamy_urine:
+        return "ckd"
+    return "general"
+
+
+def _compute_risk_score(flags: List[ClinicalFlag], intake: Optional[ClinicalIntake]) -> float:
+    """Compute a 0.0-10.0 composite risk score."""
+    critical = sum(1 for f in flags if f.severity == "critical")
+    warning = sum(1 for f in flags if f.severity == "warning")
+    info = sum(1 for f in flags if f.severity == "info")
+    base = critical * 2.5 + warning * 1.0 + info * 0.2
+
+    modifier = 0.0
+    if intake:
+        if intake.has_diabetes:
+            modifier += 1.5
+        if intake.has_hypertension:
+            modifier += 1.0
+        if intake.has_ckd_family_history:
+            modifier += 0.5
+        if intake.age and intake.age > 60:
+            modifier += 0.5
+        has_any_symptom = any([
+            intake.symptom_swelling, intake.symptom_fatigue,
+            intake.symptom_urination_changes, intake.symptom_back_pain,
+            intake.symptom_foamy_urine, intake.symptom_burning_urination,
+            intake.symptom_frequent_urination, intake.symptom_pelvic_pain,
+        ])
+        if has_any_symptom:
+            modifier += 0.3
+
+    return min(10.0, round(base + modifier, 1))
+
+
+# ---------------------------------------------------------------------------
 # Main interpretation function
 # ---------------------------------------------------------------------------
 
-def interpret(vals: DipstickValues) -> InterpretationResult:
+def interpret(vals: DipstickValues, intake: Optional[ClinicalIntake] = None) -> InterpretationResult:
     """
     Run all rules against the dipstick values and return a structured
     InterpretationResult. This is the ONLY function the API layer calls.
@@ -525,6 +580,41 @@ def interpret(vals: DipstickValues) -> InterpretationResult:
         flag = rule_fn(vals)
         if flag is not None:
             flags.append(flag)
+
+    # 1b. Intake-aware flag adjustments
+    pathway = derive_screening_pathway(intake)
+
+    if intake:
+        # Diabetic proteinuria upgrade
+        if intake.has_diabetes and _is_positive(vals.protein):
+            for i, f in enumerate(flags):
+                if f.id in ("proteinuria_mild",) and f.severity == "warning":
+                    flags[i] = f.model_copy(update={
+                        "severity": "critical",
+                        "reasoning": f.reasoning + " Diabetic proteinuria is higher risk for CKD progression.",
+                    })
+
+        # Pregnancy + protein → preeclampsia screen
+        if intake.is_pregnant and _is_positive(vals.protein):
+            flags.append(ClinicalFlag(
+                id="preeclampsia_screen",
+                label="Protein in pregnancy — screen for preeclampsia",
+                severity="critical",
+                triggered_by=["protein"],
+                reasoning=(
+                    "Proteinuria in pregnancy requires immediate evaluation to rule out "
+                    "preeclampsia. This is a medical emergency if accompanied by hypertension."
+                ),
+            ))
+
+        # Recurrent UTI upgrade
+        if intake.has_frequent_utis:
+            for i, f in enumerate(flags):
+                if f.id == "uti_classic_pattern" and f.severity != "critical":
+                    flags[i] = f.model_copy(update={
+                        "severity": "critical",
+                        "reasoning": f.reasoning + " Recurrent UTI history increases risk of upper tract involvement.",
+                    })
 
     # 2. Collect abnormal field names
     abnormal_fields = set()
@@ -548,10 +638,14 @@ def interpret(vals: DipstickValues) -> InterpretationResult:
         "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/urinary-tract-infections-in-adults-screening",
     ]
 
+    risk_score = _compute_risk_score(flags, intake)
+
     return InterpretationResult(
         abnormal_findings=abnormal_findings,
         clinical_flags=flags,
         urgency=urgency,
+        screening_pathway=pathway,
+        risk_score=risk_score,
         recommended_provider=primary,
         secondary_provider=secondary,
         recommended_actions=actions,

@@ -15,13 +15,16 @@ import uuid
 import base64
 import json
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
+from typing import Optional
 
 from app.models.dipstick import (
     DipstickValues, AnalysisResponse, FHIRIntegrationStatus, PostedResource,
+    ClinicalIntake,
 )
 from app.services.image_processing import extract_dipstick_values, get_mock_values
 from app.services.interpretation import interpret
@@ -102,12 +105,15 @@ async def fhir_status():
 # ---------------------------------------------------------------------------
 
 @router.post("/analyze", response_model=AnalysisResponse)
-async def analyze(image: UploadFile = File(...)):
+async def analyze(
+    image: UploadFile = File(...),
+    intake: Optional[str] = Form(default=None),
+):
     """
     Full dipstick analysis pipeline:
       1. Read uploaded image bytes
       2. Image processing → pad values
-      3. Rule-based clinical interpretation
+      3. Rule-based clinical interpretation (with optional clinical intake context)
       4. Plain-English explanation (LLM or template)
       5. Build FHIR bundle (local)
       6. POST resources to InterSystems FHIR server (if enabled)
@@ -119,6 +125,14 @@ async def analyze(image: UploadFile = File(...)):
             status_code=422,
             detail=f"Uploaded file must be an image. Got: {content_type}"
         )
+
+    # Parse clinical intake if provided
+    clinical_intake = None
+    if intake:
+        try:
+            clinical_intake = ClinicalIntake(**json.loads(intake))
+        except Exception as e:
+            logger.warning(f"Could not parse intake: {e}")
 
     session_id = str(uuid.uuid4())
     logger.info(f"[{session_id}] Analysis started — file: {image.filename}")
@@ -140,8 +154,8 @@ async def analyze(image: UploadFile = File(...)):
         logger.error(f"[{session_id}] Value parsing error: {e}")
         raise HTTPException(status_code=500, detail="Failed to parse dipstick values")
 
-    # 4. Interpretation
-    interpretation = interpret(dipstick_values)
+    # 4. Interpretation (with optional clinical intake context)
+    interpretation = interpret(dipstick_values, clinical_intake)
 
     # 5. Explanation
     explanation = generate_explanation(interpretation)
@@ -159,6 +173,7 @@ async def analyze(image: UploadFile = File(...)):
         interpretation=interpretation,
         session_id=session_id,
         image_b64=image_b64,
+        intake=clinical_intake,
     )
 
     # 7. POST to InterSystems FHIR server (non-blocking failure)
@@ -197,14 +212,23 @@ async def demo():
     session_id = "demo-" + str(uuid.uuid4())[:8]
     logger.info(f"[{session_id}] Demo mode — building mock result")
 
+    demo_intake = ClinicalIntake(
+        age=58,
+        has_diabetes=True,
+        has_hypertension=True,
+        symptom_fatigue=True,
+        symptom_urination_changes=True,
+    )
+
     raw_values = get_mock_values()
     dipstick_values = DipstickValues(**raw_values)
-    interpretation = interpret(dipstick_values)
+    interpretation = interpret(dipstick_values, demo_intake)
     explanation = generate_explanation(interpretation)
     fhir_bundle = build_fhir_bundle(
         dipstick_values=dipstick_values,
         interpretation=interpretation,
         session_id=session_id,
+        intake=demo_intake,
     )
 
     # Also post to InterSystems FHIR server
@@ -239,3 +263,240 @@ async def demo_raw():
         with open(MOCK_DATA_PATH) as f:
             return JSONResponse(content=json.load(f))
     return JSONResponse(status_code=404, content={"detail": "Mock data file not found"})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/report/generate — shareable clinical summary
+# ---------------------------------------------------------------------------
+
+@router.post("/report/generate")
+async def generate_report(response: AnalysisResponse):
+    """Generate a formatted plain-text clinical summary for sharing with a provider."""
+    interp = response.interpretation
+    vals = response.dipstick_values
+    expl = response.explanation
+
+    pathway_labels = {
+        "ckd": "CKD", "uti": "UTI", "diabetes": "Diabetes",
+        "mixed": "CKD + UTI", "general": "General",
+    }
+
+    pad_lines = []
+    for pad, display in [
+        ("protein", "Protein"), ("blood", "Blood"), ("leukocytes", "Leukocytes"),
+        ("nitrite", "Nitrite"), ("glucose", "Glucose"), ("ketones", "Ketones"),
+        ("bilirubin", "Bilirubin"), ("urobilinogen", "Urobilinogen"),
+        ("ph", "pH"), ("specific_gravity", "Specific Gravity"),
+    ]:
+        raw = getattr(vals, pad)
+        val_str = raw.value if hasattr(raw, "value") else str(raw)
+        status = "Normal" if val_str in ("negative",) else "Detected"
+        pad_lines.append(f"  - {display}: {val_str} ({status})")
+
+    flags_text = "\n".join(
+        f"  {i+1}. [{f.severity.upper()}] {f.label}: {f.reasoning}"
+        for i, f in enumerate(interp.clinical_flags)
+    ) or "  None identified."
+
+    actions_text = "\n".join(
+        f"  {i+1}. {a}" for i, a in enumerate(interp.recommended_actions)
+    )
+
+    evidence_text = "\n".join(
+        f"  - {link}" for link in interp.evidence_links
+    ) or "  None."
+
+    report = f"""UroSense Clinical Summary Report
+Generated: {datetime.now().isoformat()}
+Session ID: {response.session_id}
+
+SCREENING PATHWAY: {pathway_labels.get(interp.screening_pathway, interp.screening_pathway)}
+RISK SCORE: {interp.risk_score}/10
+URGENCY: {interp.urgency.value.upper()}
+
+SUMMARY: {expl.summary}
+
+BIOMARKER RESULTS:
+{chr(10).join(pad_lines)}
+
+CLINICAL FLAGS:
+{flags_text}
+
+RECOMMENDED ACTIONS:
+{actions_text}
+
+GUIDELINE REFERENCES:
+{evidence_text}
+
+---
+This report was generated by UroSense screening software.
+This is NOT a medical diagnosis. Please consult a healthcare provider.
+LOINC Panel Code: 50556-0 (Urinalysis dipstick panel)"""
+
+    return {"report_text": report, "generated_at": datetime.now().isoformat()}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/patients/history — hardcoded CKD progression timeline
+# ---------------------------------------------------------------------------
+
+@router.get("/patients/history")
+async def patient_history():
+    """
+    Returns 10 hardcoded patient history entries showing CKD progression
+    over ~90 days with a UTI episode at index 4.
+
+    Data is designed for the Clinician Dashboard protein trend chart
+    and results table. Dates are dynamic (relative to now).
+    """
+    now = datetime.now()
+
+    # Protein progression: negative×2 → trace×5 → 1+×3  (with UTI spike at idx 4)
+    entries = [
+        {
+            "session_id": str(uuid.uuid4()),
+            "date": (now - timedelta(days=81)).isoformat(),
+            "protein": "negative",
+            "blood": "negative",
+            "leukocytes": "negative",
+            "nitrite": "negative",
+            "glucose": "negative",
+            "urgency": "low",
+            "confidence": 0.92,
+            "fhir_observation_id": "obs-3870",
+        },
+        {
+            "session_id": str(uuid.uuid4()),
+            "date": (now - timedelta(days=72)).isoformat(),
+            "protein": "negative",
+            "blood": "negative",
+            "leukocytes": "negative",
+            "nitrite": "negative",
+            "glucose": "negative",
+            "urgency": "low",
+            "confidence": 0.89,
+            "fhir_observation_id": "obs-3871",
+        },
+        {
+            "session_id": str(uuid.uuid4()),
+            "date": (now - timedelta(days=63)).isoformat(),
+            "protein": "trace",
+            "blood": "negative",
+            "leukocytes": "negative",
+            "nitrite": "negative",
+            "glucose": "negative",
+            "urgency": "low",
+            "confidence": 0.91,
+            "fhir_observation_id": "obs-3872",
+        },
+        {
+            "session_id": str(uuid.uuid4()),
+            "date": (now - timedelta(days=54)).isoformat(),
+            "protein": "trace",
+            "blood": "negative",
+            "leukocytes": "negative",
+            "nitrite": "negative",
+            "glucose": "negative",
+            "urgency": "low",
+            "confidence": 0.88,
+            "fhir_observation_id": "obs-3873",
+        },
+        {
+            # Index 4 — UTI episode: leukocytes + nitrite spike
+            "session_id": str(uuid.uuid4()),
+            "date": (now - timedelta(days=45)).isoformat(),
+            "protein": "trace",
+            "blood": "trace",
+            "leukocytes": "2+",
+            "nitrite": "positive",
+            "glucose": "negative",
+            "urgency": "high",
+            "confidence": 0.94,
+            "fhir_observation_id": "obs-3874",
+        },
+        {
+            "session_id": str(uuid.uuid4()),
+            "date": (now - timedelta(days=36)).isoformat(),
+            "protein": "trace",
+            "blood": "negative",
+            "leukocytes": "trace",
+            "nitrite": "negative",
+            "glucose": "negative",
+            "urgency": "moderate",
+            "confidence": 0.90,
+            "fhir_observation_id": "obs-3875",
+        },
+        {
+            "session_id": str(uuid.uuid4()),
+            "date": (now - timedelta(days=27)).isoformat(),
+            "protein": "trace",
+            "blood": "negative",
+            "leukocytes": "negative",
+            "nitrite": "negative",
+            "glucose": "negative",
+            "urgency": "low",
+            "confidence": 0.87,
+            "fhir_observation_id": "obs-3876",
+        },
+        {
+            "session_id": str(uuid.uuid4()),
+            "date": (now - timedelta(days=18)).isoformat(),
+            "protein": "1+",
+            "blood": "negative",
+            "leukocytes": "negative",
+            "nitrite": "negative",
+            "glucose": "negative",
+            "urgency": "moderate",
+            "confidence": 0.93,
+            "fhir_observation_id": "obs-3877",
+        },
+        {
+            "session_id": str(uuid.uuid4()),
+            "date": (now - timedelta(days=9)).isoformat(),
+            "protein": "1+",
+            "blood": "negative",
+            "leukocytes": "negative",
+            "nitrite": "negative",
+            "glucose": "negative",
+            "urgency": "moderate",
+            "confidence": 0.91,
+            "fhir_observation_id": "obs-3878",
+        },
+        {
+            "session_id": str(uuid.uuid4()),
+            "date": now.isoformat(),
+            "protein": "1+",
+            "blood": "trace",
+            "leukocytes": "negative",
+            "nitrite": "negative",
+            "glucose": "negative",
+            "urgency": "moderate",
+            "confidence": 0.86,
+            "fhir_observation_id": "obs-3879",
+        },
+    ]
+
+    # -----------------------------------------------------------------------
+    # FHIR-SQL Builder equivalent query (InterSystems IRIS for Health):
+    #
+    #   SELECT
+    #     obs.Key                   AS observation_id,
+    #     obs.EffectiveDateTime     AS date,
+    #     code.CodingCode           AS loinc_code,
+    #     val.ValueString           AS result_value,
+    #     val.ValueCodeableConceptText AS interpretation
+    #   FROM
+    #     HSFHIR_X0001_S.Observation obs
+    #     JOIN HSFHIR_X0001_S.Observation_code_coding code
+    #       ON obs.Key = code.Observation
+    #     JOIN HSFHIR_X0001_S.Observation_valueQuantity val
+    #       ON obs.Key = val.Observation
+    #   WHERE
+    #     obs.SubjectReference = 'Patient/demo-patient'
+    #     AND code.CodingSystem = 'http://loinc.org'
+    #     AND code.CodingCode IN ('20454-5','57678-3','5799-2','5802-4','2349-9')
+    #   ORDER BY
+    #     obs.EffectiveDateTime ASC
+    # -----------------------------------------------------------------------
+
+    return entries

@@ -2,28 +2,34 @@
  * ProcessingScreen
  * =================
  * Shown while the API call is in flight.
- * Animated step-by-step progress display keeps the user engaged.
- * Matches actual pipeline stages so it feels authentic.
+ * 4-step pipeline with pathway context from intake.
  */
 
 import React, { useEffect, useState } from 'react';
 import AppShell from '../components/AppShell';
+import type { ClinicalIntake } from '../types';
 
 const PIPELINE_STEPS = [
-  { label: 'Reading image…',                icon: '📸', durationMs: 800  },
-  { label: 'Detecting dipstick strip…',     icon: '🔍', durationMs: 1000 },
-  { label: 'Extracting pad colors…',        icon: '🎨', durationMs: 1200 },
-  { label: 'Mapping to clinical values…',   icon: '🧪', durationMs: 800  },
-  { label: 'Running clinical rule engine…', icon: '⚙️', durationMs: 900  },
-  { label: 'Generating explanation…',       icon: '💬', durationMs: 600  },
-  { label: 'Building FHIR resources…',      icon: '📋', durationMs: 500  },
+  { label: 'Reading dipstick image…',          durationMs: 1000 },
+  { label: 'Extracting biomarker values…',     durationMs: 1400 },
+  { label: 'Running clinical rule engine…',    durationMs: 1200 },
+  { label: 'Generating guideline-backed report…', durationMs: 800 },
 ];
+
+const PATHWAY_LABELS: Record<string, string> = {
+  ckd: 'CKD Screening',
+  uti: 'UTI Screening',
+  diabetes: 'Diabetes Screening',
+  mixed: 'CKD + UTI Screening',
+  general: 'General Screening',
+};
 
 interface ProcessingScreenProps {
   previewUrl?: string | null;
+  intake?: ClinicalIntake;
 }
 
-export default function ProcessingScreen({ previewUrl }: ProcessingScreenProps) {
+export default function ProcessingScreen({ previewUrl, intake }: ProcessingScreenProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
@@ -46,14 +52,24 @@ export default function ProcessingScreen({ previewUrl }: ProcessingScreenProps) 
     ((completedSteps.length) / PIPELINE_STEPS.length) * 100
   );
 
+  const pathway = intake?.screening_pathway
+    ? PATHWAY_LABELS[intake.screening_pathway] ?? 'General Screening'
+    : null;
+
   return (
     <AppShell title="Analyzing…">
       <div style={styles.wrapper}>
+        {/* Pathway label */}
+        {pathway && (
+          <div style={styles.pathwayPill}>
+            {pathway} pathway
+          </div>
+        )}
+
         {/* Strip preview */}
         {previewUrl && (
           <div style={styles.previewBox}>
             <img src={previewUrl} alt="Dipstick being analyzed" style={styles.previewImg} />
-            {/* Scanning animation overlay */}
             <div style={styles.scanLine} />
           </div>
         )}
@@ -80,25 +96,24 @@ export default function ProcessingScreen({ previewUrl }: ProcessingScreenProps) 
                 <div
                   style={{
                     ...styles.stepIndicator,
-                    backgroundColor: isDone ? '#4F46E5' : isActive ? '#EEF2FF' : '#F1F5F9',
-                    borderColor: isDone ? '#4F46E5' : isActive ? '#4F46E5' : '#E2E8F0',
+                    backgroundColor: isDone ? '#0D9488' : isActive ? '#F0FDFA' : '#F1F5F9',
+                    borderColor: isDone ? '#0D9488' : isActive ? '#0D9488' : '#E2E8F0',
                   }}
                 >
                   {isDone ? (
-                    <span style={{ color: '#FFFFFF', fontSize: '12px' }}>✓</span>
+                    <span style={{ color: '#FFFFFF', fontSize: '12px' }}>&#10003;</span>
                   ) : (
-                    <span style={{ fontSize: '14px' }}>{step.icon}</span>
+                    <span style={{ fontSize: '13px', color: isActive ? '#0D9488' : '#94A3B8' }}>{i + 1}</span>
                   )}
                 </div>
                 <span
                   style={{
                     ...styles.stepLabel,
-                    color: isDone ? '#1E293B' : isActive ? '#4F46E5' : '#94A3B8',
+                    color: isDone ? '#1E293B' : isActive ? '#0D9488' : '#94A3B8',
                     fontWeight: isActive ? 700 : isDone ? 600 : 400,
                   }}
                 >
                   {step.label}
-                  {isActive && <span style={styles.spinner}> ⏳</span>}
                 </span>
               </div>
             );
@@ -120,6 +135,18 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '16px',
     paddingTop: '20px',
   },
+  pathwayPill: {
+    alignSelf: 'center',
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#0D9488',
+    backgroundColor: '#F0FDFA',
+    border: '1px solid #99F6E4',
+    borderRadius: '20px',
+    padding: '4px 14px',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
   previewBox: {
     position: 'relative',
     borderRadius: '16px',
@@ -127,7 +154,7 @@ const styles: Record<string, React.CSSProperties> = {
     maxHeight: '200px',
     display: 'flex',
     justifyContent: 'center',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0F2744',
   },
   previewImg: {
     width: '100%',
@@ -140,8 +167,8 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     height: '3px',
-    backgroundColor: '#4F46E5',
-    boxShadow: '0 0 10px 2px #4F46E580',
+    backgroundColor: '#0D9488',
+    boxShadow: '0 0 10px 2px rgba(13,148,136,0.5)',
     animation: 'scan 2s linear infinite',
     top: '50%',
   },
@@ -153,7 +180,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#0D9488',
     borderRadius: '99px',
     transition: 'width 0.5s ease',
   },
@@ -193,10 +220,6 @@ const styles: Record<string, React.CSSProperties> = {
   stepLabel: {
     fontSize: '14px',
     transition: 'color 0.3s ease',
-  },
-  spinner: {
-    display: 'inline-block',
-    animation: 'spin 1s linear infinite',
   },
   footnote: {
     textAlign: 'center',

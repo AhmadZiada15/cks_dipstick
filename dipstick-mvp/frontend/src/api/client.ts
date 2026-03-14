@@ -6,7 +6,7 @@
  */
 
 import axios from 'axios';
-import type { AnalysisResponse } from '../types';
+import type { AnalysisResponse, PatientHistoryEntry, FhirStatusResponse, ClinicalIntake } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? '';  // empty = use Vite proxy
 
@@ -19,9 +19,15 @@ const api = axios.create({
 // Analyze: POST /api/analyze
 // ---------------------------------------------------------------------------
 
-export async function analyzeImage(file: File): Promise<AnalysisResponse> {
+export async function analyzeImage(
+  file: File,
+  intake?: ClinicalIntake,
+): Promise<AnalysisResponse> {
   const form = new FormData();
   form.append('image', file);
+  if (intake) {
+    form.append('intake', JSON.stringify(intake));
+  }
 
   const response = await api.post<AnalysisResponse>('/api/analyze', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -36,6 +42,35 @@ export async function analyzeImage(file: File): Promise<AnalysisResponse> {
 
 export async function fetchDemo(): Promise<AnalysisResponse> {
   const response = await api.get<AnalysisResponse>('/api/demo');
+  return response.data;
+}
+
+// ---------------------------------------------------------------------------
+// Patient history: GET /api/patients/history
+// ---------------------------------------------------------------------------
+
+export async function fetchPatientHistory(): Promise<PatientHistoryEntry[]> {
+  const response = await api.get<PatientHistoryEntry[]>('/api/patients/history');
+  return response.data;
+}
+
+// ---------------------------------------------------------------------------
+// FHIR status: GET /api/fhir/status
+// ---------------------------------------------------------------------------
+
+export async function fetchFhirStatus(): Promise<FhirStatusResponse> {
+  const response = await api.get<FhirStatusResponse>('/api/fhir/status');
+  return response.data;
+}
+
+// ---------------------------------------------------------------------------
+// Report generation: POST /api/report/generate
+// ---------------------------------------------------------------------------
+
+export async function generateReport(
+  result: AnalysisResponse,
+): Promise<{ report_text: string; generated_at: string }> {
+  const response = await api.post('/api/report/generate', result);
   return response.data;
 }
 

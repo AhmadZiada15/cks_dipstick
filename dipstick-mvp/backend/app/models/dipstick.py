@@ -40,6 +40,38 @@ class UrgencyLevel(str, Enum):
 # Raw dipstick extraction (from image processing)
 # ---------------------------------------------------------------------------
 
+class ClinicalIntake(BaseModel):
+    """
+    Patient context collected before dipstick capture.
+    Used to route interpretation and personalise RAG retrieval.
+    """
+    age: Optional[int] = Field(default=None, ge=5, le=120)
+
+    # Risk factors
+    has_diabetes: bool = False
+    has_hypertension: bool = False
+    has_ckd_family_history: bool = False
+    has_frequent_utis: bool = False
+    has_cardiovascular_disease: bool = False
+    is_pregnant: bool = False
+
+    # Current symptoms
+    symptom_swelling: bool = False
+    symptom_fatigue: bool = False
+    symptom_urination_changes: bool = False
+    symptom_back_pain: bool = False
+    symptom_foamy_urine: bool = False
+    symptom_burning_urination: bool = False
+    symptom_frequent_urination: bool = False
+    symptom_pelvic_pain: bool = False
+
+    # Screening pathway (derived or user-selected)
+    screening_pathway: Optional[str] = Field(
+        default=None,
+        description="ckd | uti | diabetes | mixed | general"
+    )
+
+
 class DipstickValues(BaseModel):
     """
     Structured representation of all reagent pad readings.
@@ -114,6 +146,14 @@ class InterpretationResult(BaseModel):
     )
     why: List[str] = Field(
         description="Traceable reasoning: each action maps to a finding"
+    )
+    screening_pathway: str = Field(
+        default="general",
+        description="ckd | uti | diabetes | mixed | general"
+    )
+    risk_score: float = Field(
+        default=0.0,
+        description="0.0-10.0 composite risk score"
     )
     evidence_links: List[str] = Field(
         default_factory=list,

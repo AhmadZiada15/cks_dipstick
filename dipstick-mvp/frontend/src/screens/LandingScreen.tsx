@@ -1,211 +1,187 @@
 /**
- * LandingScreen
- * ==============
- * Onboarding / welcome screen.
- * Shows app purpose, a privacy note, and two CTAs:
- *   - "Scan a Test Strip" → capture screen
- *   - "Try Demo" → skip upload, hit /api/demo
+ * LandingScreen — UroSense branded
+ * ==================================
+ * Dark navy gradient background with teal accents.
+ * "Begin Screening" → intake → capture flow.
  */
 
 import React from 'react';
-import AppShell from '../components/AppShell';
-import DisclaimerCard from '../components/DisclaimerCard';
 
 interface LandingScreenProps {
   onStart: () => void;
   onDemo: () => void;
+  onClinician: () => void;
 }
 
-export default function LandingScreen({ onStart, onDemo }: LandingScreenProps) {
+export default function LandingScreen({ onStart, onDemo, onClinician }: LandingScreenProps) {
   return (
-    <AppShell hideHeader noPadding>
-      {/* Hero gradient header */}
-      <div style={styles.hero}>
-        <div style={styles.appIcon}>💧</div>
-        <h1 style={styles.appName}>DipCheck</h1>
-        <p style={styles.tagline}>
-          Urine dipstick screening,{'\n'}explained in plain language.
-        </p>
-      </div>
+    <div style={styles.outerWrapper}>
+      <div style={styles.phoneFrame}>
+        {/* Dark navy hero */}
+        <div style={styles.hero}>
+          {/* Logo */}
+          <div style={styles.logoBox}>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <ellipse cx="13" cy="16" rx="9" ry="12" stroke="white" strokeWidth="2" fill="none" />
+              <ellipse cx="19" cy="16" rx="9" ry="12" stroke="white" strokeWidth="2" fill="none" opacity="0.6" />
+            </svg>
+          </div>
+          <h1 style={styles.appName}>UroSense</h1>
+          <p style={styles.taglineSmall}>Early Kidney Risk Detection</p>
 
-      <div style={styles.body}>
-        {/* How it works */}
-        <div style={styles.stepsCard}>
-          <h2 style={styles.stepsTitle}>How it works</h2>
-          {STEPS.map((step, i) => (
-            <div key={i} style={styles.stepRow}>
-              <div style={styles.stepNum}>{i + 1}</div>
-              <div>
-                <div style={styles.stepLabel}>{step.label}</div>
-                <div style={styles.stepDesc}>{step.desc}</div>
-              </div>
-            </div>
-          ))}
+          <p style={styles.description}>
+            Detect early signs of kidney disease from home using a standard
+            dipstick and your phone camera.
+          </p>
+
+          {/* Trust badges */}
+          <div style={styles.badgeRow}>
+            {['Clinically validated', 'RAG-based guidelines', 'HIPAA compliant'].map((text) => (
+              <span key={text} style={styles.badge}>{text}</span>
+            ))}
+          </div>
         </div>
 
-        {/* Privacy note */}
-        <div style={styles.privacyBox}>
-          <span style={styles.privacyIcon}>🔒</span>
-          <span style={styles.privacyText}>
-            Photos are processed on-device or on a private server.
-            No data is stored or shared.
-          </span>
+        {/* White bottom sheet */}
+        <div style={styles.bottomSheet}>
+          <button style={styles.primaryBtn} onClick={onStart}>
+            Begin Screening
+          </button>
+          <button style={styles.secondaryBtn} onClick={onDemo}>
+            Try Demo (no photo needed)
+          </button>
+          <button style={styles.clinicianLink} onClick={onClinician}>
+            Clinician Dashboard &rarr;
+          </button>
+
+          <p style={styles.disclaimer}>
+            This is a screening tool, not a medical diagnosis.
+            Always consult a healthcare professional.
+          </p>
         </div>
-
-        {/* CTAs */}
-        <button style={styles.primaryBtn} onClick={onStart}>
-          📷 Scan a Test Strip
-        </button>
-        <button style={styles.demoBtn} onClick={onDemo}>
-          ▶ Try Demo (no photo needed)
-        </button>
-
-        {/* Disclaimer */}
-        <DisclaimerCard />
       </div>
-    </AppShell>
+    </div>
   );
 }
 
-const STEPS = [
-  {
-    label: 'Take or upload a photo',
-    desc: 'Photograph your urine dipstick test strip.',
-  },
-  {
-    label: 'AI reads the strip',
-    desc: 'Color analysis extracts pad values automatically.',
-  },
-  {
-    label: 'Rule-based interpretation',
-    desc: 'Clinical logic identifies patterns — transparently.',
-  },
-  {
-    label: 'Plain-language guidance',
-    desc: 'Understand your results and next steps clearly.',
-  },
-];
-
 const styles: Record<string, React.CSSProperties> = {
+  outerWrapper: {
+    minHeight: '100vh',
+    backgroundColor: '#F0F4F8',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: '24px',
+    paddingBottom: '24px',
+  },
+  phoneFrame: {
+    width: '100%',
+    maxWidth: '430px',
+    minHeight: '844px',
+    borderRadius: '40px',
+    boxShadow: '0 25px 60px rgba(0,0,0,0.18)',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  },
   hero: {
-    background: 'linear-gradient(160deg, #4F46E5 0%, #7C3AED 100%)',
-    padding: '48px 24px 36px',
+    flex: 1,
+    background: 'linear-gradient(160deg, #0F2744 0%, #1a4a6b 100%)',
+    padding: '56px 24px 32px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '8px',
+    gap: '10px',
   },
-  appIcon: {
-    fontSize: '52px',
-    lineHeight: 1,
-    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))',
+  logoBox: {
+    width: '64px',
+    height: '64px',
+    borderRadius: '18px',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   appName: {
     color: '#FFFFFF',
-    fontSize: '32px',
+    fontSize: '36px',
     fontWeight: 800,
     margin: 0,
     letterSpacing: '-0.5px',
   },
-  tagline: {
-    color: '#C4B5FD',
+  taglineSmall: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: '16px',
+    margin: 0,
+  },
+  description: {
+    color: 'rgba(255,255,255,0.85)',
     fontSize: '16px',
     textAlign: 'center',
-    margin: 0,
-    lineHeight: 1.5,
-    whiteSpace: 'pre-line',
+    maxWidth: '300px',
+    lineHeight: 1.6,
+    margin: '12px 0 16px',
   },
-  body: {
-    padding: '20px 16px 32px',
+  badgeRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: '8px',
+  },
+  badge: {
+    border: '1px solid rgba(255,255,255,0.3)',
+    borderRadius: '20px',
+    padding: '6px 14px',
+    fontSize: '12px',
+    color: 'rgba(255,255,255,0.85)',
+  },
+  bottomSheet: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '24px 24px 0 0',
+    padding: '28px 20px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '14px',
-  },
-  stepsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: '16px',
-    border: '1px solid #E2E8F0',
-    padding: '18px',
-  },
-  stepsTitle: {
-    fontSize: '14px',
-    fontWeight: 700,
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: '0.8px',
-    margin: '0 0 14px',
-  },
-  stepRow: {
-    display: 'flex',
-    alignItems: 'flex-start',
     gap: '12px',
-    marginBottom: '12px',
-  },
-  stepNum: {
-    minWidth: '28px',
-    height: '28px',
-    borderRadius: '50%',
-    backgroundColor: '#EEF2FF',
-    color: '#4F46E5',
-    fontSize: '13px',
-    fontWeight: 800,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  stepLabel: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#1E293B',
-    lineHeight: 1.3,
-  },
-  stepDesc: {
-    fontSize: '13px',
-    color: '#64748B',
-    lineHeight: 1.4,
-    marginTop: '2px',
-  },
-  privacyBox: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '8px',
-    backgroundColor: '#F0FDF4',
-    borderRadius: '12px',
-    padding: '12px',
-    border: '1px solid #BBF7D0',
-  },
-  privacyIcon: {
-    fontSize: '16px',
-    flexShrink: 0,
-  },
-  privacyText: {
-    fontSize: '13px',
-    color: '#166534',
-    lineHeight: 1.5,
   },
   primaryBtn: {
-    padding: '16px',
+    width: '100%',
+    height: '54px',
+    backgroundColor: '#0D9488',
+    color: '#FFFFFF',
     border: 'none',
     borderRadius: '14px',
-    backgroundColor: '#4F46E5',
-    color: '#FFFFFF',
     fontSize: '17px',
     fontWeight: 700,
     cursor: 'pointer',
-    width: '100%',
-    boxShadow: '0 4px 14px rgba(79,70,229,0.4)',
-    transition: 'transform 0.1s, box-shadow 0.1s',
+    boxShadow: '0 4px 14px rgba(13,148,136,0.35)',
   },
-  demoBtn: {
-    padding: '14px',
-    border: '2px solid #E0E7FF',
+  secondaryBtn: {
+    width: '100%',
+    height: '54px',
+    backgroundColor: 'transparent',
+    border: '1.5px solid #E2E8F0',
     borderRadius: '14px',
-    backgroundColor: '#FFFFFF',
-    color: '#4F46E5',
-    fontSize: '15px',
+    color: '#1E293B',
+    fontSize: '17px',
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  clinicianLink: {
     width: '100%',
+    background: 'none',
+    border: 'none',
+    color: '#94A3B8',
+    fontSize: '13px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    textAlign: 'center',
+    marginTop: '8px',
+  },
+  disclaimer: {
+    fontSize: '11px',
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 1.5,
+    margin: '8px 0 0',
   },
 };

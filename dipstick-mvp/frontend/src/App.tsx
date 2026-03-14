@@ -2,23 +2,24 @@
  * App.tsx
  * ========
  * Root component. Manages global app state and screen navigation.
- * Uses a simple state-machine pattern instead of a router
- * (single-page app with no deep-linking needed for MVP).
  *
  * Screen flow:
- *   landing → capture → processing → results → next-steps
- *        ↑___________________________________|  (start over)
+ *   landing → intake → capture → processing → results → next-steps
+ *        ↑______________________________________________________|  (start over)
  */
 
 import React, { useState, useCallback } from 'react';
-import type { AppState, AppScreen, AnalysisResponse } from './types';
+import type { AppState, AppScreen, AnalysisResponse, ClinicalIntake } from './types';
+import { EMPTY_INTAKE } from './types';
 import { analyzeImage, fetchDemo } from './api/client';
 
-import LandingScreen    from './screens/LandingScreen';
-import CaptureScreen    from './screens/CaptureScreen';
-import ProcessingScreen from './screens/ProcessingScreen';
-import ResultsScreen    from './screens/ResultsScreen';
-import NextStepsScreen  from './screens/NextStepsScreen';
+import LandingScreen         from './screens/LandingScreen';
+import IntakeScreen          from './screens/IntakeScreen';
+import CaptureScreen         from './screens/CaptureScreen';
+import ProcessingScreen      from './screens/ProcessingScreen';
+import ResultsScreen         from './screens/ResultsScreen';
+import NextStepsScreen       from './screens/NextStepsScreen';
+import ClinicianDashboard    from './screens/ClinicianDashboard';
 
 // ---------------------------------------------------------------------------
 // Initial state
@@ -30,6 +31,7 @@ const INITIAL_STATE: AppState = {
   previewUrl: null,
   result: null,
   error: null,
+  intake: { ...EMPTY_INTAKE },
 };
 
 // ---------------------------------------------------------------------------
@@ -47,6 +49,11 @@ export default function App() {
     setState(INITIAL_STATE);
   }, []);
 
+  // --- Handle intake completion ---
+  const handleIntakeComplete = useCallback((intake: ClinicalIntake) => {
+    setState((s) => ({ ...s, intake, screen: 'capture' }));
+  }, []);
+
   // --- Handle image analyze ---
   const handleAnalyze = useCallback(async (file: File) => {
     const previewUrl = URL.createObjectURL(file);
@@ -59,18 +66,18 @@ export default function App() {
     }));
 
     try {
-      const result: AnalysisResponse = await analyzeImage(file);
+      const result: AnalysisResponse = await analyzeImage(file, state.intake);
       setState((s) => ({ ...s, screen: 'results', result }));
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : 'Analysis failed. Please try again.';
       setState((s) => ({
         ...s,
-        screen: 'capture',   // send back to capture on error
+        screen: 'capture',
         error: msg,
       }));
     }
-  }, []);
+  }, [state.intake]);
 
   // --- Handle demo mode ---
   const handleDemo = useCallback(async () => {
@@ -94,10 +101,19 @@ export default function App() {
         <>
           {state.error && <GlobalError message={state.error} />}
           <LandingScreen
-            onStart={() => goTo('capture')}
+            onStart={() => goTo('intake')}
             onDemo={handleDemo}
+            onClinician={() => goTo('clinician')}
           />
         </>
+      );
+
+    case 'intake':
+      return (
+        <IntakeScreen
+          onBack={() => goTo('landing')}
+          onComplete={handleIntakeComplete}
+        />
       );
 
     case 'capture':
@@ -105,18 +121,17 @@ export default function App() {
         <>
           {state.error && <GlobalError message={state.error} />}
           <CaptureScreen
-            onBack={() => goTo('landing')}
+            onBack={() => goTo('intake')}
             onAnalyze={handleAnalyze}
           />
         </>
       );
 
     case 'processing':
-      return <ProcessingScreen previewUrl={state.previewUrl} />;
+      return <ProcessingScreen previewUrl={state.previewUrl} intake={state.intake} />;
 
     case 'results':
       if (!state.result) {
-        // Should not happen — safety fallback
         startOver();
         return null;
       }
@@ -140,6 +155,9 @@ export default function App() {
           onStartOver={startOver}
         />
       );
+
+    case 'clinician':
+      return <ClinicianDashboard onBack={() => goTo('landing')} />;
 
     default:
       return null;
@@ -169,7 +187,7 @@ function GlobalError({ message }: { message: string }) {
         boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
       }}
     >
-      ⚠️ {message}
+      {message}
     </div>
   );
 }

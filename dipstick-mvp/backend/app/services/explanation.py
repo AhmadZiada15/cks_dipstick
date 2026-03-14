@@ -25,6 +25,7 @@ import logging
 from typing import Optional
 
 from app.models.dipstick import InterpretationResult, Explanation, UrgencyLevel
+from app.services.rag import retrieve_relevant_guidelines
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +96,37 @@ def _call_llm(interpretation: InterpretationResult) -> Optional[Explanation]:
             "disclaimer": interpretation.disclaimer,
         }
 
-        prompt = EXPLANATION_PROMPT_TEMPLATE.format(
-            interpretation_json=json.dumps(interp_dict, indent=2)
+        # --- RAG: retrieve relevant clinical guideline chunks ---
+        rag_query = (
+            f"urinalysis dipstick findings: {', '.join(interpretation.abnormal_findings)}. "
+            f"urgency: {interpretation.urgency.value}. "
+            f"flags: {', '.join(f.id for f in interpretation.clinical_flags)}"
+        )
+        retrieved_chunks = retrieve_relevant_guidelines(rag_query, top_k=3)
+
+        guidelines_section = ""
+        if retrieved_chunks:
+            chunks_text = "\n---\n".join(retrieved_chunks)
+            guidelines_section = (
+                f"\nCLINICAL GUIDELINES CONTEXT (use these to ground your explanations):\n"
+                f"---\n{chunks_text}\n---\n"
+            )
+
+        interp_json_str = json.dumps(interp_dict, indent=2)
+        prompt = (
+            f"\nConvert this structured dipstick screening result into patient-friendly language.\n\n"
+            f"INPUT:\n{interp_json_str}\n"
+            f"{guidelines_section}\n"
+            f"OUTPUT FORMAT (return valid JSON only, no markdown):\n"
+            f'{{\n'
+            f'  "summary": "<1-2 sentences: what the overall result means in plain language>",\n'
+            f'  "finding_explanations": [\n'
+            f'    "<plain-language explanation of finding 1>",\n'
+            f'    "<plain-language explanation of finding 2>"\n'
+            f'  ],\n'
+            f'  "next_steps_narrative": "<1 short paragraph: what the patient should do next>",\n'
+            f'  "urgency_statement": "<1 sentence about how soon to act>"\n'
+            f'}}\n'
         )
 
         client = anthropic.Anthropic(api_key=api_key)

@@ -198,7 +198,7 @@ const styles: Record<string, React.CSSProperties> = {
   evidenceLink: {
     display: 'block',
     fontSize: '12px',
-    color: '#4F46E5',
+    color: '#0D9488',
     textDecoration: 'none',
     padding: '5px 0',
     borderBottom: '1px solid #E2E8F0',
@@ -206,10 +206,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   startOverBtn: {
     padding: '16px',
-    border: '2px solid #E0E7FF',
+    border: '2px solid #CCFBF1',
     borderRadius: '14px',
     backgroundColor: '#FFFFFF',
-    color: '#4F46E5',
+    color: '#0D9488',
     fontSize: '16px',
     fontWeight: 700,
     cursor: 'pointer',

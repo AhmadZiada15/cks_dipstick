@@ -20,9 +20,9 @@ Assumption: patient identity is anonymous (no PHI) — patient reference
 
 import uuid
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
-from app.models.dipstick import DipstickValues, InterpretationResult, SemiQuant
+from app.models.dipstick import DipstickValues, InterpretationResult, SemiQuant, ClinicalIntake
 
 
 # ---------------------------------------------------------------------------
@@ -235,11 +235,28 @@ def build_document_reference(
 # Bundle builder
 # ---------------------------------------------------------------------------
 
+def _build_condition(snomed_code: str, display: str, patient_ref: str) -> dict:
+    """Build a FHIR Condition resource for a patient risk factor."""
+    return {
+        "resourceType": "Condition",
+        "id": str(uuid.uuid4()),
+        "clinicalStatus": {
+            "coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-clinical", "code": "active"}]
+        },
+        "code": {
+            "coding": [{"system": "http://snomed.info/sct", "code": snomed_code, "display": display}],
+            "text": display,
+        },
+        "subject": {"reference": patient_ref},
+    }
+
+
 def build_fhir_bundle(
     dipstick_values: DipstickValues,
     interpretation: InterpretationResult,
     session_id: str,
     image_b64: str = "",
+    intake: Optional[ClinicalIntake] = None,
 ) -> dict:
     """
     Assemble all FHIR resources into a transaction Bundle.
@@ -293,7 +310,23 @@ def build_fhir_bundle(
             "request": {"method": "POST", "url": "Observation"},
         })
 
-    # 3. Bundle wrapper
+    # 3. Condition resources from clinical intake
+    if intake:
+        INTAKE_SNOMED = {
+            "has_diabetes": ("44054006", "Diabetes mellitus type 2"),
+            "has_hypertension": ("38341003", "Hypertensive disorder"),
+            "is_pregnant": ("77386006", "Pregnancy"),
+        }
+        for field_name, (code, display) in INTAKE_SNOMED.items():
+            if getattr(intake, field_name, False):
+                cond = _build_condition(code, display, patient_ref)
+                entries.append({
+                    "fullUrl": f"urn:uuid:{cond['id']}",
+                    "resource": cond,
+                    "request": {"method": "POST", "url": "Condition"},
+                })
+
+    # 4. Bundle wrapper
     return {
         "resourceType": "Bundle",
         "id": str(uuid.uuid4()),
