@@ -1,9 +1,6 @@
 #!/bin/bash
 # Start the FastAPI backend
-# Usage: ./start.sh [--mock]
-#   --mock  Skip LLM calls (template explanations only)
-
-set -e
+# Usage: ./start.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -28,8 +25,17 @@ fi
 
 source .venv/bin/activate
 
-# Install dependencies
-pip install -q -r requirements.txt
+# Install / upgrade dependencies — show output so failures are visible
+echo "Installing dependencies..."
+pip install -r requirements.txt
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "ERROR: pip install failed. Check errors above."
+  exit 1
+fi
 
-# Run
+echo ""
+echo "Starting uvicorn on http://0.0.0.0:8000 ..."
+echo ""
+
 uvicorn app.main:app --reload --port 8000 --host 0.0.0.0

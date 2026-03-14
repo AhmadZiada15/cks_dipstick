@@ -141,6 +141,34 @@ class Explanation(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# FHIR Integration Status  (new — InterSystems live server integration)
+# ---------------------------------------------------------------------------
+
+class PostedResource(BaseModel):
+    """Metadata about a single resource successfully POSTed to the FHIR server."""
+    resourceType: str
+    id: Optional[str] = None           # server-assigned ID parsed from Location header
+    location: Optional[str] = None     # full Location URL returned by InterSystems
+    http_status: Optional[int] = None
+
+
+class FHIRIntegrationStatus(BaseModel):
+    """
+    Reflects the outcome of posting resources to the InterSystems FHIR server.
+    Always present in AnalysisResponse; indicates success/failure without crashing.
+    """
+    fhir_post_enabled: bool = False
+    fhir_server_url: str = ""
+    fhir_server_reachable: bool = False
+    resources_posted: List[PostedResource] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+
+    @property
+    def fully_successful(self) -> bool:
+        return self.fhir_post_enabled and self.fhir_server_reachable and len(self.errors) == 0
+
+
+# ---------------------------------------------------------------------------
 # Full API response
 # ---------------------------------------------------------------------------
 
@@ -150,5 +178,9 @@ class AnalysisResponse(BaseModel):
     dipstick_values: DipstickValues
     interpretation: InterpretationResult
     explanation: Explanation
-    fhir_bundle: dict                # Minimal FHIR Bundle JSON
+    fhir_bundle: dict                        # Locally constructed FHIR Bundle JSON
+    integration_status: FHIRIntegrationStatus = Field(
+        default_factory=FHIRIntegrationStatus,
+        description="Result of posting resources to the InterSystems FHIR server",
+    )
     image_preview_url: Optional[str] = None  # base64 or presigned URL
