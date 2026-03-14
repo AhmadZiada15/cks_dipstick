@@ -1,0 +1,89 @@
+{
+  "_comment": "Seed mock data — represents a UTI-pattern result with trace protein. Used for demos and frontend dev.",
+  "session_id": "demo-session-abc123",
+  "dipstick_values": {
+    "protein": "trace",
+    "blood": "trace",
+    "leukocytes": "2+",
+    "nitrite": "positive",
+    "glucose": "negative",
+    "ketones": "negative",
+    "bilirubin": "negative",
+    "urobilinogen": "negative",
+    "ph": 6.5,
+    "specific_gravity": 1.018,
+    "confidence": 0.92,
+    "pad_confidences": {
+      "protein": 0.82,
+      "blood": 0.78,
+      "leukocytes": 0.91,
+      "nitrite": 0.95,
+      "glucose": 0.88,
+      "ketones": 0.85,
+      "bilirubin": 0.80,
+      "urobilinogen": 0.83,
+      "ph": 0.87,
+      "specific_gravity": 0.84
+    }
+  },
+  "interpretation": {
+    "abnormal_findings": ["blood", "leukocytes", "nitrite", "protein"],
+    "clinical_flags": [
+      {
+        "id": "proteinuria_mild",
+        "label": "Mild Protein Detected",
+        "severity": "warning",
+        "triggered_by": ["protein"],
+        "reasoning": "Protein level trace may suggest early kidney stress, UTI, dehydration, or strenuous exercise. Repeat testing is recommended."
+      },
+      {
+        "id": "hematuria",
+        "label": "Blood Detected in Urine",
+        "severity": "warning",
+        "triggered_by": ["blood", "protein"],
+        "reasoning": "Blood level trace may suggest hematuria (blood in urine), which can arise from urinary tract infections, kidney stones, bladder irritation, or — less commonly — kidney disease. The combination of blood and protein is of greater concern and may suggest glomerular involvement; nephrology evaluation is advisable."
+      },
+      {
+        "id": "uti_classic_pattern",
+        "label": "Classic UTI Pattern",
+        "severity": "critical",
+        "triggered_by": ["leukocytes", "nitrite"],
+        "reasoning": "Leukocytes (2+) and positive nitrite together are a strong dipstick indicator of a possible bacterial urinary tract infection. Clinical evaluation and urine culture are recommended."
+      }
+    ],
+    "urgency": "moderate",
+    "recommended_provider": "Urgent Care or Primary Care",
+    "secondary_provider": null,
+    "recommended_actions": [
+      "Confirm findings: repeat dipstick or proceed with laboratory urinalysis",
+      "Request a urine culture and sensitivity test",
+      "Request a urine albumin-to-creatinine ratio (ACR) and basic metabolic panel",
+      "Report blood in urine to your physician; microscopic urinalysis and possible renal imaging may be ordered",
+      "Schedule an appointment with your physician within the next few days"
+    ],
+    "why": [
+      "Dipstick is a screening tool; laboratory urinalysis provides greater accuracy.",
+      "Triggered by: elevated leukocytes + positive nitrite — consistent with bacterial UTI. Culture confirms organism and guides antibiotic choice.",
+      "Triggered by: elevated protein — ACR quantifies proteinuria; creatinine and BUN assess kidney function.",
+      "Triggered by: blood detected — origin (kidney, bladder, other) requires further workup to rule out serious causes.",
+      "Moderate concern level detected based on dipstick findings."
+    ],
+    "evidence_links": [
+      "https://www.auanet.org/guidelines-and-quality/guidelines/microhematuria",
+      "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/urinary-tract-infections-in-adults-screening"
+    ],
+    "disclaimer": "This result is not a medical diagnosis and does not replace evaluation by a licensed healthcare professional. Please consult a clinician for any health concerns."
+  },
+  "explanation": {
+    "summary": "Your dipstick screening identified some findings worth discussing with a doctor. The pattern of elevated white blood cells and positive nitrite may suggest a possible urinary tract infection, and trace protein and blood warrant follow-up.",
+    "finding_explanations": [
+      "Traces of blood were detected in your urine. This can result from a urinary tract infection, kidney stones, or physical activity. It warrants follow-up.",
+      "Elevated white blood cells were detected, which may suggest inflammation or a possible urinary tract infection.",
+      "A positive nitrite result may suggest the presence of bacteria in your urine, which can be a sign of a urinary tract infection.",
+      "Your urine contains a trace amount of protein, which is not normally present. This may suggest early kidney stress, a urinary tract infection, or dehydration."
+    ],
+    "next_steps_narrative": "Consider visiting an Urgent Care or Primary Care provider. Suggested next steps include: • Confirm findings: repeat dipstick or proceed with laboratory urinalysis • Request a urine culture and sensitivity test • Request a urine albumin-to-creatinine ratio (ACR) and basic metabolic panel. Remember: this screening is not a diagnosis — a clinician can provide a full evaluation and guide your care.",
+    "urgency_statement": "We suggest scheduling a doctor's appointment within the next few days to review these findings."
+  }
+}
