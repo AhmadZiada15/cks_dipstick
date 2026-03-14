@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "DipCheck Backend (FastAPI)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["backend/start.sh"],
+      "port": 8000
+    },
+    {
+      "name": "DipCheck Frontend (Vite)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "frontend"],
+      "port": 5173
+    }
+  ]
+}

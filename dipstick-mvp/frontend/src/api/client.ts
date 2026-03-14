@@ -35,11 +35,15 @@ function extractErrorMessage(err: unknown, fallback: string): string {
 export async function analyzeImage(
   file: File,
   intake?: ClinicalIntake,
+  captureMode?: string,
 ): Promise<AnalysisResponse> {
   const form = new FormData();
   form.append('image', file);
   if (intake) {
     form.append('intake', JSON.stringify(intake));
+  }
+  if (captureMode) {
+    form.append('capture_mode', captureMode);
   }
 
   try {

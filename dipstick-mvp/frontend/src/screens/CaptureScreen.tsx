@@ -1,38 +1,74 @@
 /**
  * CaptureScreen
  * ==============
- * Where the user selects or photographs their dipstick.
- * Shows UploadCard + an "Analyze" CTA once a file is selected.
+ * Two-mode capture: "Guided Capture" (live camera viewfinder) or "Upload Photo".
+ * Defaults to guided on mobile, upload on desktop.
+ * Shows capture quality feedback when the backend returns validation signals.
  */
 
 import React, { useState } from 'react';
 import AppShell from '../components/AppShell';
 import UploadCard from '../components/UploadCard';
+import GuidedCaptureView from '../components/GuidedCaptureView';
 import DisclaimerCard from '../components/DisclaimerCard';
+import MarkerTemplateCard from '../components/MarkerTemplateCard';
+import type { CaptureQuality } from '../types';
 
 interface CaptureScreenProps {
   onBack: () => void;
-  onAnalyze: (file: File) => void;
+  onAnalyze: (file: File, captureMode?: string) => void;
   error?: string | null;
+  captureQuality?: CaptureQuality | null;
 }
 
-export default function CaptureScreen({ onBack, onAnalyze, error }: CaptureScreenProps) {
+function isMobileDevice(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
+  );
+}
+
+type CaptureTab = 'guided' | 'upload';
+
+export default function CaptureScreen({ onBack, onAnalyze, error, captureQuality }: CaptureScreenProps) {
+  const [tab, setTab] = useState<CaptureTab>(() => isMobileDevice() ? 'guided' : 'upload');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [capturedViaGuide, setCapturedViaGuide] = useState(false);
 
   const handleFileSelected = (selectedFile: File) => {
     setFile(selectedFile);
     setPreviewUrl(URL.createObjectURL(selectedFile));
+    setCapturedViaGuide(false);
+  };
+
+  const handleGuidedCapture = (capturedFile: File) => {
+    setFile(capturedFile);
+    setPreviewUrl(URL.createObjectURL(capturedFile));
+    setCapturedViaGuide(true);
+  };
+
+  const handleRetake = () => {
+    setFile(null);
+    setPreviewUrl(null);
+    setCapturedViaGuide(false);
   };
 
   const handleAnalyze = () => {
-    if (file) onAnalyze(file);
+    if (file) {
+      const mode = capturedViaGuide ? 'standardized_capture' : 'free_capture';
+      onAnalyze(file, mode);
+    }
   };
 
+  // If guided capture delivered a file, show the review screen
+  const showReview = tab === 'guided' && file && previewUrl;
+
   return (
-    <AppShell title="Scan Strip" onBack={onBack}>
-      <div style={styles.wrapper}>
-        {/* Strip not detected error */}
+    <AppShell title="Scan Strip" onBack={onBack} noPadding={tab === 'guided' && !file}>
+      <div style={tab === 'guided' && !file ? styles.wrapperNoPad : styles.wrapper}>
+
+        {/* Error banner with quality feedback */}
         {error && (
           <div style={styles.errorBanner}>
             <span style={styles.errorIcon}>⚠️</span>
@@ -43,56 +79,147 @@ export default function CaptureScreen({ onBack, onAnalyze, error }: CaptureScree
           </div>
         )}
 
-        {/* Instruction pill */}
-        <div style={styles.instructionBadge}>
-          <span>📋</span>
-          <span style={styles.instructionText}>
-            Place your dipstick strip on a flat white surface and photograph it
-          </span>
-        </div>
-
-        {/* Upload component */}
-        <UploadCard onFileSelected={handleFileSelected} previewUrl={previewUrl} />
-
-        {/* File info */}
-        {file && (
-          <div style={styles.fileInfo}>
-            <span style={styles.fileIcon}>📁</span>
-            <div style={styles.fileDetails}>
-              <span style={styles.fileName}>{file.name}</span>
-              <span style={styles.fileSize}>{(file.size / 1024).toFixed(0)} KB</span>
-            </div>
-            <span style={styles.checkMark}>✓</span>
+        {/* Quality breakdown (shown when backend returns quality signals on failure) */}
+        {captureQuality && error && (
+          <div style={styles.qualityCard}>
+            <div style={styles.qualityHeader}>Capture Quality Check</div>
+            <QualityRow label="Orientation" ok={captureQuality.orientation_ok} detail={captureQuality.orientation_detail} />
+            <QualityRow label="Lighting" ok={captureQuality.lighting_ok} detail={captureQuality.lighting_detail} />
+            <QualityRow label="Strip Size" ok={captureQuality.strip_fills_frame_enough} detail={captureQuality.strip_area_detail} />
+            <QualityRow label="Aspect Ratio" ok={captureQuality.aspect_ratio_ok} detail={captureQuality.aspect_ratio_detail} />
+            <QualityRow label="Background" ok={captureQuality.background_ok} detail={captureQuality.background_detail} />
+            <QualityRow label="Pad Layout" ok={captureQuality.pad_layout_consistent} detail={captureQuality.pad_layout_detail} />
+            {captureQuality.suggestions.length > 0 && (
+              <div style={styles.suggestionsBox}>
+                <div style={styles.suggestionsTitle}>Tips to improve:</div>
+                {captureQuality.suggestions.map((s, i) => (
+                  <div key={i} style={styles.suggestionRow}>
+                    <span>💡</span>
+                    <span style={styles.suggestionText}>{s}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Analyze button */}
-        <button
-          style={{
-            ...styles.analyzeBtn,
-            opacity: file ? 1 : 0.4,
-            cursor: file ? 'pointer' : 'not-allowed',
-          }}
-          onClick={handleAnalyze}
-          disabled={!file}
-        >
-          {file ? '🔬 Analyze Strip' : 'Select a photo to continue'}
-        </button>
-
-        {/* Tips section */}
-        <div style={styles.tipsCard}>
-          <h3 style={styles.tipsTitle}>Tips for accurate results</h3>
-          {TIPS.map((tip, i) => (
-            <div key={i} style={styles.tipRow}>
-              <span>{tip.icon}</span>
-              <span style={styles.tipText}>{tip.text}</span>
-            </div>
-          ))}
+        {/* Mode toggle tabs */}
+        <div style={tab === 'guided' && !file ? styles.tabBarFloating : styles.tabBar}>
+          <button
+            style={{ ...styles.tabBtn, ...(tab === 'guided' ? styles.tabBtnActive : {}) }}
+            onClick={() => { setTab('guided'); handleRetake(); }}
+          >
+            📷 Guided Capture
+          </button>
+          <button
+            style={{ ...styles.tabBtn, ...(tab === 'upload' ? styles.tabBtnActive : {}) }}
+            onClick={() => { setTab('upload'); handleRetake(); }}
+          >
+            📁 Upload Photo
+          </button>
         </div>
 
-        <DisclaimerCard compact />
+        {(tab !== 'guided' || showReview) && (
+          <div style={styles.templateCardWrap}>
+            <MarkerTemplateCard
+              compact
+              title="Use the guide card for faster alignment"
+              subtitle="A single fiducial marker gives the camera a fixed anchor, similar to mobile document scanning."
+            />
+          </div>
+        )}
+
+        {/* === GUIDED CAPTURE TAB === */}
+        {tab === 'guided' && !showReview && (
+          <GuidedCaptureView
+            onCapture={handleGuidedCapture}
+            onCancel={() => setTab('upload')}
+          />
+        )}
+
+        {/* === GUIDED CAPTURE REVIEW === */}
+        {showReview && (
+          <div style={styles.reviewSection}>
+            <div style={styles.reviewImageWrapper}>
+              <img src={previewUrl} alt="Captured strip" style={styles.reviewImage} />
+            </div>
+            <div style={styles.reviewButtons}>
+              <button style={styles.retakeBtn} onClick={handleRetake}>
+                ↺ Retake
+              </button>
+              <button style={styles.analyzeBtn} onClick={handleAnalyze}>
+                🔬 Analyze Strip
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* === UPLOAD TAB === */}
+        {tab === 'upload' && (
+          <>
+            {/* Instruction pill */}
+            <div style={styles.instructionBadge}>
+              <span>📋</span>
+              <span style={styles.instructionText}>
+                For best results, place your dipstick on the guide card so the marker and strip lane are both visible
+              </span>
+            </div>
+
+            <UploadCard onFileSelected={handleFileSelected} previewUrl={previewUrl} />
+
+            {file && (
+              <div style={styles.fileInfo}>
+                <span style={styles.fileIcon}>📁</span>
+                <div style={styles.fileDetails}>
+                  <span style={styles.fileName}>{file.name}</span>
+                  <span style={styles.fileSize}>{(file.size / 1024).toFixed(0)} KB</span>
+                </div>
+                <span style={styles.checkMark}>✓</span>
+              </div>
+            )}
+
+            <button
+              style={{
+                ...styles.analyzeBtn,
+                opacity: file ? 1 : 0.4,
+                cursor: file ? 'pointer' : 'not-allowed',
+              }}
+              onClick={handleAnalyze}
+              disabled={!file}
+            >
+              {file ? '🔬 Analyze Strip' : 'Select a photo to continue'}
+            </button>
+
+            <div style={styles.tipsCard}>
+              <h3 style={styles.tipsTitle}>Tips for accurate results</h3>
+              {TIPS.map((tip, i) => (
+                <div key={i} style={styles.tipRow}>
+                  <span>{tip.icon}</span>
+                  <span style={styles.tipText}>{tip.text}</span>
+                </div>
+              ))}
+            </div>
+
+            <DisclaimerCard compact />
+          </>
+        )}
       </div>
     </AppShell>
+  );
+}
+
+// Quality check row sub-component
+function QualityRow({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
+  return (
+    <div style={styles.qualityRow}>
+      <span style={{ ...styles.qualityIcon, color: ok ? '#16A34A' : '#DC2626' }}>
+        {ok ? '✓' : '✗'}
+      </span>
+      <div style={{ flex: 1 }}>
+        <span style={styles.qualityLabel}>{label}</span>
+        <span style={styles.qualityDetail}>{detail}</span>
+      </div>
+    </div>
   );
 }
 
@@ -110,6 +237,45 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '14px',
     paddingTop: '16px',
   },
+  wrapperNoPad: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0px',
+  },
+  // Tab bar
+  tabBar: {
+    display: 'flex',
+    gap: '6px',
+    backgroundColor: '#F1F5F9',
+    padding: '4px',
+    borderRadius: '12px',
+  },
+  tabBarFloating: {
+    display: 'flex',
+    gap: '6px',
+    backgroundColor: 'rgba(241,245,249,0.95)',
+    padding: '4px',
+    borderRadius: '12px',
+    margin: '8px 12px',
+  },
+  tabBtn: {
+    flex: 1,
+    padding: '10px 4px',
+    border: 'none',
+    borderRadius: '9px',
+    background: 'transparent',
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#64748B',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  tabBtnActive: {
+    backgroundColor: '#FFFFFF',
+    color: '#0D9488',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  },
+  // Error
   errorBanner: {
     display: 'flex',
     alignItems: 'flex-start',
@@ -118,6 +284,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #FECACA',
     borderRadius: '12px',
     padding: '14px',
+    margin: '0 12px',
   },
   errorIcon: { fontSize: '20px', flexShrink: 0, marginTop: '1px' },
   errorContent: {
@@ -135,6 +302,107 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#B91C1C',
     lineHeight: 1.45,
   },
+  // Quality feedback card
+  qualityCard: {
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '14px',
+    padding: '16px',
+    margin: '0 12px',
+  },
+  qualityHeader: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#64748B',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.7px',
+    marginBottom: '12px',
+  },
+  qualityRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    padding: '6px 0',
+    borderBottom: '1px solid #F1F5F9',
+  },
+  qualityIcon: {
+    fontSize: '16px',
+    fontWeight: 700,
+    flexShrink: 0,
+    width: '20px',
+    textAlign: 'center' as const,
+  },
+  qualityLabel: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#1E293B',
+    marginRight: '6px',
+  },
+  qualityDetail: {
+    fontSize: '12px',
+    color: '#64748B',
+  },
+  suggestionsBox: {
+    marginTop: '12px',
+    backgroundColor: '#EFF6FF',
+    borderRadius: '10px',
+    padding: '10px 12px',
+  },
+  suggestionsTitle: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#1D4ED8',
+    marginBottom: '6px',
+  },
+  suggestionRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '6px',
+    marginBottom: '4px',
+  },
+  suggestionText: {
+    fontSize: '12px',
+    color: '#1E40AF',
+    lineHeight: 1.4,
+  },
+  // Review (post-capture)
+  reviewSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+    padding: '0 12px',
+  },
+  templateCardWrap: {
+    padding: '0 12px',
+  },
+  reviewImageWrapper: {
+    borderRadius: '14px',
+    overflow: 'hidden',
+    border: '2px solid #E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  reviewImage: {
+    width: '100%',
+    maxHeight: '360px',
+    objectFit: 'contain',
+    display: 'block',
+  },
+  reviewButtons: {
+    display: 'flex',
+    gap: '10px',
+  },
+  retakeBtn: {
+    flex: 1,
+    padding: '14px',
+    border: '2px solid #E2E8F0',
+    borderRadius: '12px',
+    backgroundColor: '#FFFFFF',
+    color: '#64748B',
+    fontSize: '15px',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  // Upload tab
   instructionBadge: {
     display: 'flex',
     alignItems: 'center',
@@ -193,6 +461,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     transition: 'opacity 0.2s',
     boxShadow: '0 4px 14px rgba(13,148,136,0.35)',
+    cursor: 'pointer',
   },
   tipsCard: {
     backgroundColor: '#FFFFFF',
@@ -204,7 +473,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '13px',
     fontWeight: 700,
     color: '#64748B',
-    textTransform: 'uppercase',
+    textTransform: 'uppercase' as const,
     letterSpacing: '0.7px',
     margin: '0 0 12px',
   },

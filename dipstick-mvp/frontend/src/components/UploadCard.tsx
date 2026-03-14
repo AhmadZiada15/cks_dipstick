@@ -72,10 +72,10 @@ export default function UploadCard({ onFileSelected, previewUrl }: UploadCardPro
         ) : (
           /* Empty state */
           <div style={styles.emptyState}>
-            <div style={styles.iconCircle}>📸</div>
-            <p style={styles.primaryText}>Tap to take or upload a photo</p>
+            <div style={styles.iconCircle}>⌘</div>
+            <p style={styles.primaryText}>Capture the strip with the marker card</p>
             <p style={styles.secondaryText}>
-              Position your dipstick strip against a white background
+              Keep the fiducial marker and the full strip lane visible in one frame
             </p>
           </div>
         )}
@@ -112,8 +112,7 @@ export default function UploadCard({ onFileSelected, previewUrl }: UploadCardPro
       <div style={styles.tipBox}>
         <span style={styles.tipIcon}>💡</span>
         <span style={styles.tipText}>
-          For best results, lay the strip flat, use good lighting, and keep the strip
-          fully in frame.
+          For best results, keep the marker visible, lay the strip flat, and avoid glare.
         </span>
       </div>
     </div>

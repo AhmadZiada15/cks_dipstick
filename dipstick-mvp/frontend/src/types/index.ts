@@ -141,12 +141,48 @@ export type ImageValidationStatus =
   | 'low_confidence'
   | 'processing_error';
 
+export type CaptureMode = 'free_capture' | 'standardized_capture';
+
+export interface CaptureQuality {
+  // Geometry
+  orientation_ok: boolean;
+  orientation_detail: string;
+  tilt_degrees: number;
+  aspect_ratio_ok: boolean;
+  aspect_ratio_detail: string;
+  measured_aspect_ratio: number;
+  strip_fills_frame_enough: boolean;
+  strip_area_fraction: number;
+  strip_area_detail: string;
+  // Pad layout
+  pad_layout_consistent: boolean;
+  pad_transitions_found: number;
+  pad_layout_detail: string;
+  // Lighting
+  lighting_ok: boolean;
+  mean_brightness: number;
+  brightness_uniformity: number;
+  lighting_detail: string;
+  // Background
+  background_ok: boolean;
+  background_detail: string;
+  // Template (future)
+  template_detected: boolean;
+  markers_found: number;
+  template_detail: string;
+  // Overall
+  overall_quality_score: number;
+  capture_mode: string;
+  suggestions: string[];
+}
+
 export interface ImageValidation {
   status: ImageValidationStatus;
   is_valid: boolean;
   confidence: number;
   strip_detected: boolean;
   failure_reason: string | null;
+  capture_quality: CaptureQuality | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +257,7 @@ export interface AppState {
   result: AnalysisResponse | null;
   error: string | null;
   intake: ClinicalIntake;
+  captureQuality: CaptureQuality | null;
 }
 
 // ---------------------------------------------------------------------------

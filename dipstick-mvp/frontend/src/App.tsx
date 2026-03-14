@@ -34,6 +34,7 @@ const INITIAL_STATE: AppState = {
   result: null,
   error: null,
   intake: { ...EMPTY_INTAKE },
+  captureQuality: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -57,7 +58,7 @@ export default function App() {
   }, []);
 
   // --- Handle image analyze ---
-  const handleAnalyze = useCallback(async (file: File) => {
+  const handleAnalyze = useCallback(async (file: File, captureMode?: string) => {
     const previewUrl = URL.createObjectURL(file);
     setState((s) => ({
       ...s,
@@ -65,10 +66,11 @@ export default function App() {
       uploadedFile: file,
       previewUrl,
       error: null,
+      captureQuality: null,
     }));
 
     try {
-      const result: AnalysisResponse = await analyzeImage(file, state.intake);
+      const result: AnalysisResponse = await analyzeImage(file, state.intake, captureMode);
 
       // Gate: if image validation failed, show a user-friendly error and stay on capture
       if (!result.image_validation?.is_valid) {
@@ -84,7 +86,12 @@ export default function App() {
         } else if (reason) {
           msg = reason;
         }
-        setState((s) => ({ ...s, screen: 'capture', error: msg }));
+        setState((s) => ({
+          ...s,
+          screen: 'capture',
+          error: msg,
+          captureQuality: result.image_validation?.capture_quality ?? null,
+        }));
         return;
       }
 
@@ -153,6 +160,7 @@ export default function App() {
           onBack={() => goTo('intake')}
           onAnalyze={handleAnalyze}
           error={state.error}
+          captureQuality={state.captureQuality}
         />
       );
 
