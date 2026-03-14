@@ -18,16 +18,40 @@ Assumptions (Hackathon):
   - Reference colors are hard-coded from Siemens Multistix 10 SG documentation
   - In production you would calibrate per-image using the white/control pad
   - We use LAB color space for perceptual color matching (better than RGB for this)
+
+FAIL-CLOSED POLICY (v0.3):
+  - If the image cannot be decoded, return an explicit failure — never mock data.
+  - If no strip is detected, return an explicit failure — never center-crop.
+  - If confidence is below MIN_CONFIDENCE_THRESHOLD, return an explicit failure.
+  - Mock/demo data is ONLY served via get_mock_values() on the /api/demo path.
 """
 
 import cv2
 import numpy as np
+from dataclasses import dataclass, field
 from typing import Optional, Tuple, List
 import logging
 
-from app.models.dipstick import StripNotDetectedError
+from app.models.dipstick import (
+    ImageValidation, ImageValidationStatus, MIN_CONFIDENCE_THRESHOLD,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Processing result — returned by extract_dipstick_values
+# Contains both validation metadata AND (if valid) the pad readings.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ImageProcessingResult:
+    """
+    Return type of extract_dipstick_values().
+    Callers MUST check `validation.is_valid` before using `values`.
+    """
+    validation: ImageValidation
+    values: Optional[dict] = None       # populated only when validation.is_valid
 
 # ---------------------------------------------------------------------------
 # Reference color tables (LAB space, L 0-100, A -128-127, B -128-127)
@@ -347,45 +371,73 @@ def _estimate_specific_gravity(strip_bgr: np.ndarray,
 # Main extraction function
 # ---------------------------------------------------------------------------
 
-def extract_dipstick_values(image_bytes: bytes) -> dict:
+def extract_dipstick_values(image_bytes: bytes) -> ImageProcessingResult:
     """
-    Entry point: takes raw image bytes, returns a dict of dipstick readings
-    plus confidence metadata.
+    Entry point: takes raw image bytes, returns an ImageProcessingResult.
 
-    Returns dict matching DipstickValues schema fields.
-    Raises StripNotDetectedError when the image does not contain a
-    recognisable dipstick strip.
+    FAIL-CLOSED: returns a failure result (with no pad values) when:
+      - Image bytes cannot be decoded
+      - No dipstick strip is detected in the image
+      - Overall confidence falls below MIN_CONFIDENCE_THRESHOLD
+
+    Only returns values when a strip is found and confidence is acceptable.
     """
-    arr = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
-    if image is None:
-        raise StripNotDetectedError(
-            "The uploaded file could not be read as an image. "
-            "Please upload a JPG or PNG photo of your dipstick strip."
+    # --- Gate 1: decode ------------------------------------------------
+    try:
+        arr = np.frombuffer(image_bytes, dtype=np.uint8)
+        image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    except Exception as exc:
+        logger.error(f"Image decode crashed: {exc}")
+        return ImageProcessingResult(
+            validation=ImageValidation(
+                status=ImageValidationStatus.IMAGE_DECODE_FAILED,
+                is_valid=False,
+                confidence=0.0,
+                strip_detected=False,
+                failure_reason=f"Image bytes could not be decoded: {exc}",
+            )
         )
 
+    if image is None:
+        logger.warning("cv2.imdecode returned None — not a valid image")
+        return ImageProcessingResult(
+            validation=ImageValidation(
+                status=ImageValidationStatus.IMAGE_DECODE_FAILED,
+                is_valid=False,
+                confidence=0.0,
+                strip_detected=False,
+                failure_reason=(
+                    "The uploaded file could not be read as an image. "
+                    "Please upload a JPEG or PNG photo of a dipstick strip."
+                ),
+            )
+        )
+
+    # --- Gate 2: strip detection ----------------------------------------
     strip = detect_strip(image)
 
     if strip is None:
-        raise StripNotDetectedError(
-            "No dipstick strip detected in the image. "
-            "Please photograph your test strip on a flat, well-lit surface."
+        logger.warning("No dipstick strip detected in image — rejecting")
+        return ImageProcessingResult(
+            validation=ImageValidation(
+                status=ImageValidationStatus.STRIP_NOT_DETECTED,
+                is_valid=False,
+                confidence=0.0,
+                strip_detected=False,
+                failure_reason=(
+                    "No dipstick test strip was detected in this image. "
+                    "Please take a photo with the strip on a flat, light-colored "
+                    "surface and ensure the full strip is visible."
+                ),
+            )
         )
 
-    if not validate_strip(strip):
-        raise StripNotDetectedError(
-            "The image does not appear to contain a valid dipstick strip. "
-            "Make sure the entire strip with colored pads is visible in the photo."
-        )
-
+    # --- Read each pad from the detected strip --------------------------
     detection_confidence = 0.90
-
-    # Read each pad
     pad_results = {}
     pad_confidences = {}
 
-    # Semi-quantitative pads
     semi_pads = [
         ("protein",       PROTEIN_REF),
         ("blood",         BLOOD_REF),
@@ -424,11 +476,43 @@ def extract_dipstick_values(image_bytes: bytes) -> dict:
     mean_pad_conf = float(np.mean(list(pad_confidences.values())))
     overall_confidence = round(detection_confidence * mean_pad_conf, 2)
 
-    return {
+    # --- Gate 3: confidence threshold -----------------------------------
+    if overall_confidence < MIN_CONFIDENCE_THRESHOLD:
+        logger.warning(
+            f"Confidence {overall_confidence} < threshold {MIN_CONFIDENCE_THRESHOLD} "
+            "— rejecting read"
+        )
+        return ImageProcessingResult(
+            validation=ImageValidation(
+                status=ImageValidationStatus.LOW_CONFIDENCE,
+                is_valid=False,
+                confidence=overall_confidence,
+                strip_detected=True,
+                failure_reason=(
+                    f"A strip was detected but the pad readings are unreliable "
+                    f"(confidence {overall_confidence:.0%}). Try better lighting, "
+                    f"ensure the strip is fully dipped, and avoid shadows."
+                ),
+            )
+        )
+
+    # --- All gates passed: return valid result --------------------------
+    values = {
         **pad_results,
         "confidence": overall_confidence,
         "pad_confidences": pad_confidences,
     }
+
+    return ImageProcessingResult(
+        validation=ImageValidation(
+            status=ImageValidationStatus.VALID,
+            is_valid=True,
+            confidence=overall_confidence,
+            strip_detected=True,
+            failure_reason=None,
+        ),
+        values=values,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -24,9 +24,11 @@ from typing import Optional
 
 from app.models.dipstick import (
     DipstickValues, AnalysisResponse, FHIRIntegrationStatus, PostedResource,
-    ClinicalIntake, StripNotDetectedError,
+    ClinicalIntake, ImageValidation, ImageValidationStatus,
 )
-from app.services.image_processing import extract_dipstick_values, get_mock_values
+from app.services.image_processing import (
+    extract_dipstick_values, get_mock_values, ImageProcessingResult,
+)
 from app.services.interpretation import interpret
 from app.services.explanation import generate_explanation
 from app.fhir.mapper import build_fhir_bundle
@@ -110,14 +112,15 @@ async def analyze(
     intake: Optional[str] = Form(default=None),
 ):
     """
-    Full dipstick analysis pipeline:
+    Full dipstick analysis pipeline (FAIL-CLOSED):
       1. Read uploaded image bytes
-      2. Image processing → pad values
-      3. Rule-based clinical interpretation (with optional clinical intake context)
-      4. Plain-English explanation (LLM or template)
-      5. Build FHIR bundle (local)
-      6. POST resources to InterSystems FHIR server (if enabled)
-      7. Return AnalysisResponse with integration_status
+      2. Image processing → validate → pad values
+         If validation fails: return immediately with image_validation error.
+         NO fallback to mock data. NO FHIR posting.
+      3. Rule-based clinical interpretation
+      4. Plain-English explanation
+      5. Build FHIR bundle + POST to InterSystems (if enabled)
+      6. Return AnalysisResponse
     """
     content_type = image.content_type or ""
     if not content_type.startswith("image/"):
@@ -140,16 +143,38 @@ async def analyze(
     # 1. Read bytes
     image_bytes = await image.read()
 
-    # 2. Image processing — rejects images that don't contain a strip
+    # 2. Image processing — FAIL-CLOSED
     try:
-        raw_values = extract_dipstick_values(image_bytes)
-    except StripNotDetectedError as e:
-        logger.info(f"[{session_id}] Strip validation failed: {e.reason}")
-        raise HTTPException(status_code=422, detail=e.reason)
+        result: ImageProcessingResult = extract_dipstick_values(image_bytes)
+    except Exception as e:
+        # Unexpected crash in CV pipeline — return structured error, not mock data
+        logger.error(f"[{session_id}] Image processing crashed: {e}")
+        return AnalysisResponse(
+            session_id=session_id,
+            image_validation=ImageValidation(
+                status=ImageValidationStatus.PROCESSING_ERROR,
+                is_valid=False,
+                confidence=0.0,
+                strip_detected=False,
+                failure_reason=f"Image processing failed unexpectedly: {e}",
+            ),
+        )
 
-    # 3. Parse values
+    # --- GATE: if image validation failed, stop here. ---
+    # No interpretation, no explanation, no FHIR posting.
+    if not result.validation.is_valid:
+        logger.warning(
+            f"[{session_id}] Image rejected: {result.validation.status.value} "
+            f"— {result.validation.failure_reason}"
+        )
+        return AnalysisResponse(
+            session_id=session_id,
+            image_validation=result.validation,
+        )
+
+    # 3. Parse validated values
     try:
-        dipstick_values = DipstickValues(**raw_values)
+        dipstick_values = DipstickValues(**result.values)
     except Exception as e:
         logger.error(f"[{session_id}] Value parsing error: {e}")
         raise HTTPException(status_code=500, detail="Failed to parse dipstick values")
@@ -190,6 +215,7 @@ async def analyze(
 
     return AnalysisResponse(
         session_id=session_id,
+        image_validation=result.validation,
         dipstick_values=dipstick_values,
         interpretation=interpretation,
         explanation=explanation,
@@ -208,6 +234,9 @@ async def demo():
     Returns a fully pre-populated mock analysis result AND posts it to the
     InterSystems FHIR server (if FHIR_POST_ENABLED=true).
     Ideal for offline demos and frontend development.
+
+    NOTE: This endpoint explicitly uses mock data — the image_validation
+    is marked VALID with a note that this is synthetic demo data.
     """
     session_id = "demo-" + str(uuid.uuid4())[:8]
     logger.info(f"[{session_id}] Demo mode — building mock result")
@@ -231,6 +260,15 @@ async def demo():
         intake=demo_intake,
     )
 
+    # Demo mode image_validation — explicitly marks this as synthetic data
+    demo_validation = ImageValidation(
+        status=ImageValidationStatus.VALID,
+        is_valid=True,
+        confidence=0.92,
+        strip_detected=True,
+        failure_reason=None,
+    )
+
     # Also post to InterSystems FHIR server
     logger.info(f"[{session_id}] Posting demo resources to InterSystems FHIR server…")
     raw_status = await post_dipstick_resources(fhir_bundle)
@@ -244,6 +282,7 @@ async def demo():
 
     return AnalysisResponse(
         session_id=session_id,
+        image_validation=demo_validation,
         dipstick_values=dipstick_values,
         interpretation=interpretation,
         explanation=explanation,

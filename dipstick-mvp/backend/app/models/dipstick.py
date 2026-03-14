@@ -114,6 +114,40 @@ class ClinicalIntake(BaseModel):
     )
 
 
+class ImageValidationStatus(str, Enum):
+    """Outcome of the image-validation step, BEFORE any clinical logic runs."""
+    VALID = "valid"                        # strip detected, pads read, confidence OK
+    STRIP_NOT_DETECTED = "strip_not_detected"   # image decoded but no strip found
+    IMAGE_DECODE_FAILED = "image_decode_failed"  # bytes could not be decoded as an image
+    LOW_CONFIDENCE = "low_confidence"      # strip detected but pad reads are unreliable
+    PROCESSING_ERROR = "processing_error"  # unexpected crash in the CV pipeline
+
+
+class ImageValidation(BaseModel):
+    """
+    Structured result of image validation.  Populated before interpretation runs.
+    When `status != VALID`, the pipeline must NOT produce clinical outputs.
+    """
+    status: ImageValidationStatus
+    is_valid: bool = Field(
+        description="True only when status == VALID — convenience flag for callers"
+    )
+    confidence: float = Field(
+        default=0.0, ge=0.0, le=1.0,
+        description="Overall extraction confidence (0-1)"
+    )
+    strip_detected: bool = False
+    failure_reason: Optional[str] = Field(
+        default=None,
+        description="Human-readable explanation of why validation failed"
+    )
+
+
+# Minimum overall confidence to proceed with clinical interpretation.
+# Below this threshold the pipeline returns an error, not fake results.
+MIN_CONFIDENCE_THRESHOLD = 0.35
+
+
 class DipstickValues(BaseModel):
     """
     Structured representation of all reagent pad readings.
@@ -257,10 +291,17 @@ class FHIRIntegrationStatus(BaseModel):
 class AnalysisResponse(BaseModel):
     """Top-level response returned to the frontend."""
     session_id: str
-    dipstick_values: DipstickValues
-    interpretation: InterpretationResult
-    explanation: Explanation
-    fhir_bundle: dict                        # Locally constructed FHIR Bundle JSON
+
+    # Image validation — always present.  When is_valid==False the clinical
+    # fields below are empty / default and NO data was posted to FHIR.
+    image_validation: ImageValidation
+
+    # Clinical results — only meaningful when image_validation.is_valid == True
+    dipstick_values: Optional[DipstickValues] = None
+    interpretation: Optional[InterpretationResult] = None
+    explanation: Optional[Explanation] = None
+    fhir_bundle: Optional[dict] = None
+
     integration_status: FHIRIntegrationStatus = Field(
         default_factory=FHIRIntegrationStatus,
         description="Result of posting resources to the InterSystems FHIR server",
