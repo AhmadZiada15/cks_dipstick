@@ -314,6 +314,34 @@ export default function ResultsScreen({ result, onBack, onNextSteps }: ResultsSc
   const [shareStatus, setShareStatus] = useState<'idle' | 'loading' | 'copied' | 'shared' | 'error'>('idle');
 
   const { dipstick_values, interpretation, explanation } = result;
+
+  // Defensive guard: if clinical data is missing, show a fallback message
+  if (!dipstick_values || !interpretation || !explanation) {
+    return (
+      <AppShell title="Your Results" onBack={onBack}>
+        <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#1E293B', marginBottom: '8px' }}>
+            Analysis Unavailable
+          </h2>
+          <p style={{ fontSize: '14px', color: '#64748B', lineHeight: 1.6, marginBottom: '24px' }}>
+            {result.image_validation?.failure_reason ??
+              'The image could not be analyzed. Please go back and try again with a clear photo of a dipstick strip.'}
+          </p>
+          <button
+            onClick={onBack}
+            style={{
+              padding: '12px 24px', backgroundColor: '#0D9488', color: '#FFFFFF',
+              border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            ← Try Again
+          </button>
+        </div>
+      </AppShell>
+    );
+  }
+
   const abnormalSet = new Set(interpretation.abnormal_findings);
   const padEntries = Object.entries(PAD_DISPLAY_NAMES) as [string, string][];
   const showRetestAlert = dipstick_values.confidence < 0.70 && !retestDismissed;
@@ -523,14 +551,14 @@ export default function ResultsScreen({ result, onBack, onNextSteps }: ResultsSc
           <div style={styles.fhirHeader}>
             <span style={styles.fhirBadge}>FHIR R4 Bundle</span>
             <span style={styles.fhirDesc}>
-              {result.fhir_bundle.entry
+              {result.fhir_bundle?.entry
                 ? (result.fhir_bundle.entry as unknown[]).length
                 : 0}{' '}
               resources
             </span>
           </div>
           <pre style={styles.fhirJson}>
-            {JSON.stringify(result.fhir_bundle, null, 2)}
+            {result.fhir_bundle ? JSON.stringify(result.fhir_bundle, null, 2) : 'No FHIR bundle generated.'}
           </pre>
         </div>
       )}

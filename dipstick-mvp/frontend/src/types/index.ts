@@ -31,8 +31,11 @@ export interface DipstickValues {
 // Clinical intake
 // ---------------------------------------------------------------------------
 
+export type BiologicalSex = 'male' | 'female' | 'intersex' | 'prefer_not_to_say';
+
 export interface ClinicalIntake {
   age?: number;
+  sex?: BiologicalSex;
   has_diabetes: boolean;
   has_hypertension: boolean;
   has_ckd_family_history: boolean;
@@ -47,6 +50,9 @@ export interface ClinicalIntake {
   symptom_burning_urination: boolean;
   symptom_frequent_urination: boolean;
   symptom_pelvic_pain: boolean;
+  // Physician
+  physician_name?: string;
+  has_no_physician: boolean;
   screening_pathway?: string;
 }
 
@@ -65,6 +71,7 @@ export const EMPTY_INTAKE: ClinicalIntake = {
   symptom_burning_urination: false,
   symptom_frequent_urination: false,
   symptom_pelvic_pain: false,
+  has_no_physician: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -124,15 +131,36 @@ export interface FHIRIntegrationStatus {
 }
 
 // ---------------------------------------------------------------------------
+// Image validation (from backend fail-closed pipeline)
+// ---------------------------------------------------------------------------
+
+export type ImageValidationStatus =
+  | 'valid'
+  | 'strip_not_detected'
+  | 'image_decode_failed'
+  | 'low_confidence'
+  | 'processing_error';
+
+export interface ImageValidation {
+  status: ImageValidationStatus;
+  is_valid: boolean;
+  confidence: number;
+  strip_detected: boolean;
+  failure_reason: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Full API response
 // ---------------------------------------------------------------------------
 
 export interface AnalysisResponse {
   session_id: string;
-  dipstick_values: DipstickValues;
-  interpretation: InterpretationResult;
-  explanation: Explanation;
-  fhir_bundle: Record<string, unknown>;
+  image_validation: ImageValidation;
+  // Clinical fields are null when image_validation.is_valid === false
+  dipstick_values: DipstickValues | null;
+  interpretation: InterpretationResult | null;
+  explanation: Explanation | null;
+  fhir_bundle: Record<string, unknown> | null;
   image_preview_url?: string;
   integration_status?: FHIRIntegrationStatus;
 }
@@ -177,6 +205,7 @@ export interface FhirStatusResponse {
 
 export type AppScreen =
   | 'landing'
+  | 'consent'
   | 'intake'
   | 'capture'
   | 'processing'
@@ -186,6 +215,7 @@ export type AppScreen =
 
 export interface AppState {
   screen: AppScreen;
+  consentGiven: boolean;
   uploadedFile: File | null;
   previewUrl: string | null;
   result: AnalysisResponse | null;

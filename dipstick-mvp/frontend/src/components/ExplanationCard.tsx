@@ -22,7 +22,7 @@ export default function ExplanationCard({ explanation, urgency }: ExplanationCar
     <div style={styles.wrapper}>
       {/* Urgency pill */}
       <div style={{ ...styles.urgencyBanner, backgroundColor: urgencyBg, borderColor: urgencyColor + '44' }}>
-        <span style={styles.urgencyDot(urgencyColor)} />
+        <span style={urgencyDotStyle(urgencyColor)} />
         <span style={{ ...styles.urgencyText, color: urgencyColor }}>
           {URGENCY_LABEL[urgency]}
         </span>
@@ -63,7 +63,13 @@ export default function ExplanationCard({ explanation, urgency }: ExplanationCar
   );
 }
 
-const styles: Record<string, React.CSSProperties & { [key: string]: unknown }> = {
+// Extracted so it doesn't pollute the typed styles Record
+const urgencyDotStyle = (color: string): React.CSSProperties => ({
+  width: '10px', height: '10px', borderRadius: '50%',
+  backgroundColor: color, flexShrink: 0, display: 'inline-block',
+});
+
+const styles: Record<string, React.CSSProperties> = {
   wrapper: {
     display: 'flex',
     flexDirection: 'column',
@@ -77,13 +83,12 @@ const styles: Record<string, React.CSSProperties & { [key: string]: unknown }> =
     borderRadius: '12px',
     border: '1.5px solid',
   },
-  urgencyDot: (color: string) => ({
+  urgencyDot: {
     width: '10px',
     height: '10px',
     borderRadius: '50%',
-    backgroundColor: color,
     flexShrink: 0,
-  }) as React.CSSProperties,
+  },
   urgencyText: {
     fontSize: '14px',
     fontWeight: 700,

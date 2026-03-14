@@ -14,6 +14,7 @@ import { EMPTY_INTAKE } from './types';
 import { analyzeImage, fetchDemo } from './api/client';
 
 import LandingScreen         from './screens/LandingScreen';
+import ConsentScreen         from './screens/ConsentScreen';
 import IntakeScreen          from './screens/IntakeScreen';
 import CaptureScreen         from './screens/CaptureScreen';
 import ProcessingScreen      from './screens/ProcessingScreen';
@@ -27,6 +28,7 @@ import ClinicianDashboard    from './screens/ClinicianDashboard';
 
 const INITIAL_STATE: AppState = {
   screen: 'landing',
+  consentGiven: false,
   uploadedFile: null,
   previewUrl: null,
   result: null,
@@ -67,6 +69,25 @@ export default function App() {
 
     try {
       const result: AnalysisResponse = await analyzeImage(file, state.intake);
+
+      // Gate: if image validation failed, show a user-friendly error and stay on capture
+      if (!result.image_validation?.is_valid) {
+        const reason = result.image_validation?.failure_reason;
+        const status = result.image_validation?.status;
+        let msg = 'We could not analyze this image. Please try again with a clear photo of a dipstick strip.';
+        if (status === 'strip_not_detected') {
+          msg = 'No dipstick strip was detected in the image. Please place the strip on a plain background and retake the photo.';
+        } else if (status === 'image_decode_failed') {
+          msg = 'The uploaded file could not be read as an image. Please try a different photo.';
+        } else if (status === 'low_confidence') {
+          msg = 'The image quality was too low for reliable analysis. Please retake the photo with better lighting.';
+        } else if (reason) {
+          msg = reason;
+        }
+        setState((s) => ({ ...s, screen: 'capture', error: msg }));
+        return;
+      }
+
       setState((s) => ({ ...s, screen: 'results', result }));
     } catch (err: unknown) {
       const msg =
@@ -101,17 +122,27 @@ export default function App() {
         <>
           {state.error && <GlobalError message={state.error} />}
           <LandingScreen
-            onStart={() => goTo('intake')}
+            onStart={() => goTo('consent')}
             onDemo={handleDemo}
             onClinician={() => goTo('clinician')}
           />
         </>
       );
 
+    case 'consent':
+      return (
+        <ConsentScreen
+          onBack={() => goTo('landing')}
+          onConsent={() => {
+            setState((s) => ({ ...s, consentGiven: true, screen: 'intake' }));
+          }}
+        />
+      );
+
     case 'intake':
       return (
         <IntakeScreen
-          onBack={() => goTo('landing')}
+          onBack={() => goTo('consent')}
           onComplete={handleIntakeComplete}
         />
       );
@@ -149,6 +180,7 @@ export default function App() {
       return (
         <NextStepsScreen
           result={state.result}
+          intake={state.intake}
           onBack={() => goTo('results')}
           onStartOver={startOver}
         />
