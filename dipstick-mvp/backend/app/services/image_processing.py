@@ -33,10 +33,44 @@ from typing import Optional, Tuple, List
 import logging
 
 from app.models.dipstick import (
-    ImageValidation, ImageValidationStatus, MIN_CONFIDENCE_THRESHOLD,
+    ImageValidation, ImageValidationStatus, CaptureQualityModel,
+    MIN_CONFIDENCE_THRESHOLD,
+)
+from app.services.capture import (
+    CaptureMode, assess_capture_quality, CaptureQuality,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _capture_quality_to_model(cq: CaptureQuality) -> CaptureQualityModel:
+    """Convert the internal CaptureQuality dataclass to the Pydantic API model."""
+    return CaptureQualityModel(
+        orientation_ok=cq.orientation_ok,
+        orientation_detail=cq.orientation_detail,
+        tilt_degrees=cq.tilt_degrees,
+        aspect_ratio_ok=cq.aspect_ratio_ok,
+        aspect_ratio_detail=cq.aspect_ratio_detail,
+        measured_aspect_ratio=cq.measured_aspect_ratio,
+        strip_fills_frame_enough=cq.strip_fills_frame_enough,
+        strip_area_fraction=cq.strip_area_fraction,
+        strip_area_detail=cq.strip_area_detail,
+        pad_layout_consistent=cq.pad_layout_consistent,
+        pad_transitions_found=cq.pad_transitions_found,
+        pad_layout_detail=cq.pad_layout_detail,
+        lighting_ok=cq.lighting_ok,
+        mean_brightness=cq.mean_brightness,
+        brightness_uniformity=cq.brightness_uniformity,
+        lighting_detail=cq.lighting_detail,
+        background_ok=cq.background_ok,
+        background_detail=cq.background_detail,
+        template_detected=cq.template_detected,
+        markers_found=cq.markers_found,
+        template_detail=cq.template_detail,
+        overall_quality_score=cq.overall_quality_score,
+        capture_mode=cq.capture_mode,
+        suggestions=cq.suggestions,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -168,10 +202,18 @@ def _closest_label(sample_lab: Tuple[float, float, float],
 # Strip detection
 # ---------------------------------------------------------------------------
 
-def detect_strip(image: np.ndarray) -> Optional[np.ndarray]:
+@dataclass
+class StripDetectionResult:
+    """Result of strip detection: the normalized image and the original contour."""
+    strip_image: Optional[np.ndarray] = None
+    contour: Optional[np.ndarray] = None
+
+
+def detect_strip(image: np.ndarray) -> StripDetectionResult:
     """
     Attempt to locate and perspective-correct the dipstick strip.
-    Returns a normalized (cropped, upright) strip image or None if detection fails.
+    Returns a StripDetectionResult with the normalized strip image and
+    the original contour (needed for capture quality assessment).
 
     Strategy:
       1. Convert to grayscale → blur → threshold
@@ -184,7 +226,7 @@ def detect_strip(image: np.ndarray) -> Optional[np.ndarray]:
 
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        return None
+        return StripDetectionResult()
 
     # Sort by area descending; pick contours that are plausibly strip-shaped
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
@@ -207,12 +249,15 @@ def detect_strip(image: np.ndarray) -> Optional[np.ndarray]:
                                    dtype=np.float32)
                 M = cv2.getPerspectiveTransform(src_pts, dst_pts)
                 warped = cv2.warpPerspective(image, M, (strip_w, strip_h))
-                return warped
+                return StripDetectionResult(strip_image=warped, contour=cnt)
             else:
                 # Fall back to bounding-box crop
-                return image[y:y+h, x:x+w]
+                return StripDetectionResult(
+                    strip_image=image[y:y+h, x:x+w],
+                    contour=cnt,
+                )
 
-    return None  # detection failed
+    return StripDetectionResult()  # detection failed
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +416,10 @@ def _estimate_specific_gravity(strip_bgr: np.ndarray,
 # Main extraction function
 # ---------------------------------------------------------------------------
 
-def extract_dipstick_values(image_bytes: bytes) -> ImageProcessingResult:
+def extract_dipstick_values(
+    image_bytes: bytes,
+    capture_mode: CaptureMode = CaptureMode.FREE_CAPTURE,
+) -> ImageProcessingResult:
     """
     Entry point: takes raw image bytes, returns an ImageProcessingResult.
 
@@ -381,6 +429,10 @@ def extract_dipstick_values(image_bytes: bytes) -> ImageProcessingResult:
       - Overall confidence falls below MIN_CONFIDENCE_THRESHOLD
 
     Only returns values when a strip is found and confidence is acceptable.
+
+    Capture quality signals are always populated when the image can be decoded,
+    even when the overall result is invalid. This lets the frontend show the
+    user actionable feedback ("move closer", "improve lighting", etc.).
     """
 
     # --- Gate 1: decode ------------------------------------------------
@@ -415,9 +467,15 @@ def extract_dipstick_values(image_bytes: bytes) -> ImageProcessingResult:
         )
 
     # --- Gate 2: strip detection ----------------------------------------
-    strip = detect_strip(image)
+    detection = detect_strip(image)
+    strip = detection.strip_image
+    strip_contour = detection.contour
 
     if strip is None:
+        # Still run capture quality on the image to give actionable feedback
+        quality = assess_capture_quality(image, strip_contour, None, capture_mode)
+        quality_model = _capture_quality_to_model(quality)
+
         logger.warning("No dipstick strip detected in image — rejecting")
         return ImageProcessingResult(
             validation=ImageValidation(
@@ -430,6 +488,7 @@ def extract_dipstick_values(image_bytes: bytes) -> ImageProcessingResult:
                     "Please take a photo with the strip on a flat, light-colored "
                     "surface and ensure the full strip is visible."
                 ),
+                capture_quality=quality_model,
             )
         )
 
@@ -476,30 +535,52 @@ def extract_dipstick_values(image_bytes: bytes) -> ImageProcessingResult:
     mean_pad_conf = float(np.mean(list(pad_confidences.values())))
     overall_confidence = round(detection_confidence * mean_pad_conf, 2)
 
+    # --- Capture quality assessment ------------------------------------
+    quality = assess_capture_quality(image, strip_contour, strip, capture_mode)
+    quality_model = _capture_quality_to_model(quality)
+
+    # Apply quality-based confidence adjustment:
+    # Poor capture quality penalizes confidence (max -15% penalty).
+    # This makes borderline reads fail-closed when capture is poor.
+    quality_penalty = (1.0 - quality.overall_quality_score) * 0.15
+    adjusted_confidence = round(max(0.0, overall_confidence - quality_penalty), 2)
+
+    logger.info(
+        f"Capture quality: {quality.overall_quality_score:.0%} | "
+        f"Raw confidence: {overall_confidence} | "
+        f"Adjusted: {adjusted_confidence} | "
+        f"Suggestions: {quality.suggestions}"
+    )
+
     # --- Gate 3: confidence threshold -----------------------------------
-    if overall_confidence < MIN_CONFIDENCE_THRESHOLD:
+    if adjusted_confidence < MIN_CONFIDENCE_THRESHOLD:
         logger.warning(
-            f"Confidence {overall_confidence} < threshold {MIN_CONFIDENCE_THRESHOLD} "
+            f"Confidence {adjusted_confidence} < threshold {MIN_CONFIDENCE_THRESHOLD} "
             "— rejecting read"
         )
+        # Include quality suggestions in the failure reason
+        tip = ""
+        if quality.suggestions:
+            tip = " Tips: " + "; ".join(quality.suggestions[:2])
         return ImageProcessingResult(
             validation=ImageValidation(
                 status=ImageValidationStatus.LOW_CONFIDENCE,
                 is_valid=False,
-                confidence=overall_confidence,
+                confidence=adjusted_confidence,
                 strip_detected=True,
                 failure_reason=(
                     f"A strip was detected but the pad readings are unreliable "
-                    f"(confidence {overall_confidence:.0%}). Try better lighting, "
-                    f"ensure the strip is fully dipped, and avoid shadows."
+                    f"(confidence {adjusted_confidence:.0%}). Try better lighting, "
+                    f"ensure the strip is fully dipped, and avoid shadows.{tip}"
                 ),
+                capture_quality=quality_model,
             )
         )
 
     # --- All gates passed: return valid result --------------------------
     values = {
         **pad_results,
-        "confidence": overall_confidence,
+        "confidence": adjusted_confidence,
         "pad_confidences": pad_confidences,
     }
 
@@ -507,9 +588,10 @@ def extract_dipstick_values(image_bytes: bytes) -> ImageProcessingResult:
         validation=ImageValidation(
             status=ImageValidationStatus.VALID,
             is_valid=True,
-            confidence=overall_confidence,
+            confidence=adjusted_confidence,
             strip_detected=True,
             failure_reason=None,
+            capture_quality=quality_model,
         ),
         values=values,
     )

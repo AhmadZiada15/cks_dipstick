@@ -123,6 +123,60 @@ class ImageValidationStatus(str, Enum):
     PROCESSING_ERROR = "processing_error"  # unexpected crash in the CV pipeline
 
 
+class CaptureQualityModel(BaseModel):
+    """
+    Structured capture-quality signals exposed via the API.
+    Each field is a boolean pass/fail + optional detail string.
+    The frontend can use these to guide users toward better captures.
+    """
+    # Geometry
+    orientation_ok: bool = False
+    orientation_detail: str = ""
+    tilt_degrees: float = 0.0
+
+    aspect_ratio_ok: bool = False
+    aspect_ratio_detail: str = ""
+    measured_aspect_ratio: float = 0.0
+
+    strip_fills_frame_enough: bool = False
+    strip_area_fraction: float = 0.0
+    strip_area_detail: str = ""
+
+    # Pad layout
+    pad_layout_consistent: bool = False
+    pad_transitions_found: int = 0
+    pad_layout_detail: str = ""
+
+    # Lighting
+    lighting_ok: bool = False
+    mean_brightness: float = 0.0
+    brightness_uniformity: float = 0.0
+    lighting_detail: str = ""
+
+    # Background
+    background_ok: bool = False
+    background_detail: str = ""
+
+    # Template / marker detection (future cardboard frame workflow)
+    template_detected: bool = False
+    markers_found: int = 0
+    template_detail: str = "No template detection in current version"
+
+    # Overall
+    overall_quality_score: float = Field(
+        default=0.0, ge=0.0, le=1.0,
+        description="Composite capture quality score (0-1)"
+    )
+    capture_mode: str = Field(
+        default="free_capture",
+        description="free_capture | standardized_capture"
+    )
+    suggestions: List[str] = Field(
+        default_factory=list,
+        description="User-facing tips to improve capture quality"
+    )
+
+
 class ImageValidation(BaseModel):
     """
     Structured result of image validation.  Populated before interpretation runs.
@@ -140,6 +194,10 @@ class ImageValidation(BaseModel):
     failure_reason: Optional[str] = Field(
         default=None,
         description="Human-readable explanation of why validation failed"
+    )
+    capture_quality: Optional[CaptureQualityModel] = Field(
+        default=None,
+        description="Structured capture-quality signals (geometry, lighting, etc.)"
     )
 
 

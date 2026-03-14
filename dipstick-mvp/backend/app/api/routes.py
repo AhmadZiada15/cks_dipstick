@@ -29,6 +29,7 @@ from app.models.dipstick import (
 from app.services.image_processing import (
     extract_dipstick_values, get_mock_values, ImageProcessingResult,
 )
+from app.services.capture import CaptureMode
 from app.services.interpretation import interpret
 from app.services.explanation import generate_explanation
 from app.fhir.mapper import build_fhir_bundle
@@ -110,6 +111,7 @@ async def fhir_status():
 async def analyze(
     image: UploadFile = File(...),
     intake: Optional[str] = Form(default=None),
+    capture_mode: Optional[str] = Form(default="free_capture"),
 ):
     """
     Full dipstick analysis pipeline (FAIL-CLOSED):
@@ -143,9 +145,15 @@ async def analyze(
     # 1. Read bytes
     image_bytes = await image.read()
 
+    # Parse capture mode
+    try:
+        mode = CaptureMode(capture_mode or "free_capture")
+    except ValueError:
+        mode = CaptureMode.FREE_CAPTURE
+
     # 2. Image processing — FAIL-CLOSED
     try:
-        result: ImageProcessingResult = extract_dipstick_values(image_bytes)
+        result: ImageProcessingResult = extract_dipstick_values(image_bytes, mode)
     except Exception as e:
         # Unexpected crash in CV pipeline — return structured error, not mock data
         logger.error(f"[{session_id}] Image processing crashed: {e}")
