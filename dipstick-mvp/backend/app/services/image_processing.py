@@ -6,24 +6,26 @@ Phase 2 — Image Processing Module
 Pipeline:
   1. Load image from bytes
   2. Detect the dipstick strip via edge/contour detection
-  3. Perspective-correct and normalize the strip
-  4. Locate the 10 reagent pad ROIs (regions of interest)
-  5. Sample the average color in each ROI
-  6. Compare sampled colors to reference color tables
-  7. Return semi-quantitative readings per pad
+  3. Validate the detected region looks like a real strip
+  4. Perspective-correct and normalize the strip
+  5. Locate the 10 reagent pad ROIs (regions of interest)
+  6. Sample the average color in each ROI
+  7. Compare sampled colors to reference color tables
+  8. Return semi-quantitative readings per pad
 
 Assumptions (Hackathon):
   - Strip orientation: vertical, pads on left or right side
   - Reference colors are hard-coded from Siemens Multistix 10 SG documentation
   - In production you would calibrate per-image using the white/control pad
   - We use LAB color space for perceptual color matching (better than RGB for this)
-  - When confidence is low we fall back to mock values so the demo always works
 """
 
 import cv2
 import numpy as np
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import logging
+
+from app.models.dipstick import StripNotDetectedError
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +192,70 @@ def detect_strip(image: np.ndarray) -> Optional[np.ndarray]:
 
 
 # ---------------------------------------------------------------------------
+# Strip validation — reject non-strip images that pass contour detection
+# ---------------------------------------------------------------------------
+
+MIN_DISTINCT_ZONES = 3
+ZONE_COLOR_DIFF_THRESHOLD = 8.0
+BACKGROUND_LIGHTNESS_MIN = 55.0
+
+def validate_strip(strip_bgr: np.ndarray) -> bool:
+    """
+    Secondary validation on a candidate strip region.
+    A real dipstick has multiple discrete colored pads separated by a light
+    background. Random objects / artwork generally fail these checks.
+
+    Returns True if the region looks like a plausible dipstick strip.
+    """
+    h, w = strip_bgr.shape[:2]
+    if h < 40 or w < 10:
+        return False
+
+    strip_lab = cv2.cvtColor(strip_bgr, cv2.COLOR_BGR2Lab)
+
+    num_slices = 10
+    slice_colors: List[Tuple[float, float, float]] = []
+    for i in range(num_slices):
+        y_start = int(i * h / num_slices)
+        y_end = int((i + 1) * h / num_slices)
+        margin_x = max(1, int(w * 0.2))
+        roi = strip_lab[y_start:y_end, margin_x:w - margin_x]
+        if roi.size == 0:
+            continue
+        mean = roi.mean(axis=(0, 1))
+        L = float(mean[0]) * 100.0 / 255.0
+        A = float(mean[1]) - 128.0
+        B = float(mean[2]) - 128.0
+        slice_colors.append((L, A, B))
+
+    if len(slice_colors) < 4:
+        return False
+
+    # Count how many adjacent slices differ significantly in color.
+    # A strip should have abrupt transitions between pads.
+    distinct_transitions = 0
+    for i in range(1, len(slice_colors)):
+        dist = _lab_distance(slice_colors[i - 1], slice_colors[i])
+        if dist > ZONE_COLOR_DIFF_THRESHOLD:
+            distinct_transitions += 1
+
+    if distinct_transitions < MIN_DISTINCT_ZONES:
+        return False
+
+    # Check that the strip's background (interstitial area between pads)
+    # has reasonable lightness — real strips are white / light tan plastic.
+    edge_margin = max(1, int(w * 0.05))
+    left_edge = strip_lab[:, :edge_margin]
+    right_edge = strip_lab[:, w - edge_margin:]
+    edges = np.concatenate([left_edge, right_edge], axis=1)
+    mean_edge_L = float(edges[:, :, 0].mean()) * 100.0 / 255.0
+    if mean_edge_L < BACKGROUND_LIGHTNESS_MIN:
+        return False
+
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Sample a pad ROI
 # ---------------------------------------------------------------------------
 
@@ -287,25 +353,33 @@ def extract_dipstick_values(image_bytes: bytes) -> dict:
     plus confidence metadata.
 
     Returns dict matching DipstickValues schema fields.
-    Falls back to mock values if strip detection fails (demo safety net).
+    Raises StripNotDetectedError when the image does not contain a
+    recognisable dipstick strip.
     """
-    # Decode image
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
     image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
     if image is None:
-        logger.warning("Could not decode image — using mock values")
-        return _mock_values(confidence=0.0)
+        raise StripNotDetectedError(
+            "The uploaded file could not be read as an image. "
+            "Please upload a JPG or PNG photo of your dipstick strip."
+        )
 
-    # Try to detect and isolate the strip
     strip = detect_strip(image)
-    detection_confidence = 0.90 if strip is not None else 0.40
 
     if strip is None:
-        logger.warning("Strip not detected — using full image with low confidence")
-        # Use center vertical band of the image as a fallback
-        h, w = image.shape[:2]
-        strip = image[:, w // 4: 3 * w // 4]
+        raise StripNotDetectedError(
+            "No dipstick strip detected in the image. "
+            "Please photograph your test strip on a flat, well-lit surface."
+        )
+
+    if not validate_strip(strip):
+        raise StripNotDetectedError(
+            "The image does not appear to contain a valid dipstick strip. "
+            "Make sure the entire strip with colored pads is visible in the photo."
+        )
+
+    detection_confidence = 0.90
 
     # Read each pad
     pad_results = {}

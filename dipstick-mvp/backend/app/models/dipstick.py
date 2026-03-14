@@ -12,6 +12,18 @@ from enum import Enum
 
 
 # ---------------------------------------------------------------------------
+# Custom exceptions
+# ---------------------------------------------------------------------------
+
+class StripNotDetectedError(Exception):
+    """Raised when uploaded image does not contain a recognisable dipstick strip."""
+
+    def __init__(self, reason: str = "No dipstick strip detected in the image."):
+        self.reason = reason
+        super().__init__(reason)
+
+
+# ---------------------------------------------------------------------------
 # Dipstick value scales
 # ---------------------------------------------------------------------------
 

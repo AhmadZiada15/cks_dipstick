@@ -5,7 +5,7 @@
  * All calls return typed responses matching the backend schemas.
  */
 
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import type { AnalysisResponse, PatientHistoryEntry, FhirStatusResponse, ClinicalIntake } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? '';  // empty = use Vite proxy
@@ -14,6 +14,19 @@ const api = axios.create({
   baseURL: BASE_URL,
   timeout: 60_000,   // Image uploads may be slow on mobile networks
 });
+
+/**
+ * Extract a human-readable message from an Axios error.
+ * Prefers the `detail` field returned by FastAPI's HTTPException.
+ */
+function extractErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof AxiosError && err.response?.data) {
+    const detail = (err.response.data as Record<string, unknown>).detail;
+    if (typeof detail === 'string') return detail;
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
+}
 
 // ---------------------------------------------------------------------------
 // Analyze: POST /api/analyze
@@ -29,11 +42,14 @@ export async function analyzeImage(
     form.append('intake', JSON.stringify(intake));
   }
 
-  const response = await api.post<AnalysisResponse>('/api/analyze', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-
-  return response.data;
+  try {
+    const response = await api.post<AnalysisResponse>('/api/analyze', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, 'Analysis failed. Please try again.'));
+  }
 }
 
 // ---------------------------------------------------------------------------

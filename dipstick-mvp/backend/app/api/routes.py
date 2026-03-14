@@ -24,7 +24,7 @@ from typing import Optional
 
 from app.models.dipstick import (
     DipstickValues, AnalysisResponse, FHIRIntegrationStatus, PostedResource,
-    ClinicalIntake,
+    ClinicalIntake, StripNotDetectedError,
 )
 from app.services.image_processing import extract_dipstick_values, get_mock_values
 from app.services.interpretation import interpret
@@ -140,12 +140,12 @@ async def analyze(
     # 1. Read bytes
     image_bytes = await image.read()
 
-    # 2. Image processing (falls back to mock on failure)
+    # 2. Image processing — rejects images that don't contain a strip
     try:
         raw_values = extract_dipstick_values(image_bytes)
-    except Exception as e:
-        logger.warning(f"[{session_id}] Image processing error: {e} — using mock")
-        raw_values = get_mock_values()
+    except StripNotDetectedError as e:
+        logger.info(f"[{session_id}] Strip validation failed: {e.reason}")
+        raise HTTPException(status_code=422, detail=e.reason)
 
     # 3. Parse values
     try:

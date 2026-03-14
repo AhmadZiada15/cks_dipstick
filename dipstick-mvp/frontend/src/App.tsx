@@ -118,13 +118,11 @@ export default function App() {
 
     case 'capture':
       return (
-        <>
-          {state.error && <GlobalError message={state.error} />}
-          <CaptureScreen
-            onBack={() => goTo('intake')}
-            onAnalyze={handleAnalyze}
-          />
-        </>
+        <CaptureScreen
+          onBack={() => goTo('intake')}
+          onAnalyze={handleAnalyze}
+          error={state.error}
+        />
       );
 
     case 'processing':

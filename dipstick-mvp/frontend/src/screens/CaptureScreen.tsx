@@ -13,9 +13,10 @@ import DisclaimerCard from '../components/DisclaimerCard';
 interface CaptureScreenProps {
   onBack: () => void;
   onAnalyze: (file: File) => void;
+  error?: string | null;
 }
 
-export default function CaptureScreen({ onBack, onAnalyze }: CaptureScreenProps) {
+export default function CaptureScreen({ onBack, onAnalyze, error }: CaptureScreenProps) {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -31,6 +32,17 @@ export default function CaptureScreen({ onBack, onAnalyze }: CaptureScreenProps)
   return (
     <AppShell title="Scan Strip" onBack={onBack}>
       <div style={styles.wrapper}>
+        {/* Strip not detected error */}
+        {error && (
+          <div style={styles.errorBanner}>
+            <span style={styles.errorIcon}>⚠️</span>
+            <div style={styles.errorContent}>
+              <span style={styles.errorTitle}>Strip not recognised</span>
+              <span style={styles.errorText}>{error}</span>
+            </div>
+          </div>
+        )}
+
         {/* Instruction pill */}
         <div style={styles.instructionBadge}>
           <span>📋</span>
@@ -97,6 +109,31 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: '14px',
     paddingTop: '16px',
+  },
+  errorBanner: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    backgroundColor: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: '12px',
+    padding: '14px',
+  },
+  errorIcon: { fontSize: '20px', flexShrink: 0, marginTop: '1px' },
+  errorContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
+  errorTitle: {
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#991B1B',
+  },
+  errorText: {
+    fontSize: '13px',
+    color: '#B91C1C',
+    lineHeight: 1.45,
   },
   instructionBadge: {
     display: 'flex',
