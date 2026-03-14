@@ -40,6 +40,14 @@ class UrgencyLevel(str, Enum):
 # Raw dipstick extraction (from image processing)
 # ---------------------------------------------------------------------------
 
+class BiologicalSex(str, Enum):
+    """Used for clinical screening pathway routing (e.g. UTI prevalence differs by sex)."""
+    MALE             = "male"
+    FEMALE           = "female"
+    INTERSEX         = "intersex"
+    PREFER_NOT_TO_SAY = "prefer_not_to_say"
+
+
 class ClinicalIntake(BaseModel):
     """
     Patient context collected before dipstick capture.
@@ -47,13 +55,24 @@ class ClinicalIntake(BaseModel):
     """
     age: Optional[int] = Field(default=None, ge=5, le=120)
 
+    # Demographics
+    sex: Optional[BiologicalSex] = Field(
+        default=None,
+        description="Biological sex — used for UTI/kidney risk routing"
+    )
+
     # Risk factors
     has_diabetes: bool = False
     has_hypertension: bool = False
     has_ckd_family_history: bool = False
     has_frequent_utis: bool = False
     has_cardiovascular_disease: bool = False
-    is_pregnant: bool = False
+
+    # Pregnancy — only clinically relevant for female / intersex
+    is_pregnant: bool = Field(
+        default=False,
+        description="Only shown in UI when sex is female or intersex"
+    )
 
     # Current symptoms
     symptom_swelling: bool = False
@@ -64,6 +83,17 @@ class ClinicalIntake(BaseModel):
     symptom_burning_urination: bool = False
     symptom_frequent_urination: bool = False
     symptom_pelvic_pain: bool = False
+
+    # Physician context
+    physician_name: Optional[str] = Field(
+        default=None,
+        max_length=120,
+        description="Patient's regular physician name (optional, used in FHIR performer field)"
+    )
+    has_no_physician: bool = Field(
+        default=False,
+        description="True when patient indicated they do not have a regular physician"
+    )
 
     # Screening pathway (derived or user-selected)
     screening_pathway: Optional[str] = Field(

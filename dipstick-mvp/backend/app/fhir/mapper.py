@@ -80,6 +80,7 @@ def build_observation(
     patient_ref: str,
     session_id: str,
     effective_time: str,
+    physician_name: Optional[str] = None,
 ) -> dict:
     """
     Build a minimal FHIR R4 Observation resource for one dipstick pad reading.
@@ -140,6 +141,11 @@ def build_observation(
         ],
     }
 
+    # Attach ordering/performing physician if provided
+    # FHIR R4: Observation.performer is a list of References
+    if physician_name:
+        observation["performer"] = [{"display": physician_name}]
+
     # Attach value
     if pad_name == "ph":
         observation["valueQuantity"] = {
@@ -175,6 +181,7 @@ def build_document_reference(
     image_b64: str = "",
     content_type: str = "image/jpeg",
     effective_time: str = "",
+    physician_name: Optional[str] = None,
 ) -> dict:
     """
     Build a FHIR R4 DocumentReference representing the uploaded dipstick image.
@@ -202,6 +209,8 @@ def build_document_reference(
         "subject": {"reference": patient_ref},
         "date": effective_time or _now_iso(),
         "description": "Uploaded urine dipstick test strip image for automated screening",
+        # Physician author reference — populated when patient provides their physician name
+        **({"author": [{"display": physician_name}]} if physician_name else {}),
         "identifier": [
             {"system": "urn:dipstick-mvp:session", "value": session_id}
         ],
@@ -269,12 +278,16 @@ def build_fhir_bundle(
     effective_time = _now_iso()
     entries = []
 
+    # Extract physician name from intake if provided
+    physician_name = intake.physician_name if intake else None
+
     # 1. DocumentReference for the image
     doc_ref = build_document_reference(
         session_id=session_id,
         patient_ref=patient_ref,
         image_b64=image_b64,
         effective_time=effective_time,
+        physician_name=physician_name,
     )
     entries.append({
         "fullUrl": f"urn:uuid:{doc_ref['id']}",
@@ -303,6 +316,7 @@ def build_fhir_bundle(
             patient_ref=patient_ref,
             session_id=session_id,
             effective_time=effective_time,
+            physician_name=physician_name,
         )
         entries.append({
             "fullUrl": f"urn:uuid:{obs['id']}",
