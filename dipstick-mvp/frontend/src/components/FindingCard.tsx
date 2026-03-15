@@ -109,7 +109,7 @@ const styles: Record<string, React.CSSProperties> = {
   padName: {
     fontSize: '15px',
     fontWeight: 600,
-    color: '#1E293B',
+    color: '#5B4634',
   },
   confidence: {
     fontSize: '11px',

@@ -118,7 +118,7 @@ export default function IntakeScreen({ onBack, onComplete }: IntakeScreenProps) 
               onClick={() => setSex(opt.value)}
               style={{
                 ...styles.pill,
-                backgroundColor: intake.sex === opt.value ? BRAND_TEAL : '#F1F5F9',
+                backgroundColor: intake.sex === opt.value ? BRAND_TEAL : '#F6F3EF',
                 color:           intake.sex === opt.value ? '#FFFFFF'  : '#475569',
                 border:          intake.sex === opt.value ? `2px solid ${BRAND_TEAL}` : '2px solid transparent',
                 fontWeight:      intake.sex === opt.value ? 700 : 500,
@@ -215,7 +215,7 @@ function ToggleCard({
       style={{
         ...cardStyles.card,
         border:          selected ? `2px solid ${BRAND_TEAL}` : '1px solid #E2E8F0',
-        backgroundColor: selected ? '#F0FDF4' : '#FFFFFF',
+        backgroundColor: selected ? '#F6EFE8' : '#FFFFFF',
       }}
     >
       <div style={{
@@ -284,7 +284,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%', height: '54px', backgroundColor: BRAND_TEAL,
     color: '#FFFFFF', border: 'none', borderRadius: '14px',
     fontSize: '17px', fontWeight: 700, cursor: 'pointer',
-    boxShadow: '0 4px 14px rgba(13,148,136,0.35)', marginTop: '16px',
+    boxShadow: '0 4px 14px rgba(111,78,55,0.28)', marginTop: '16px',
   },
   skipLink: {
     width: '100%', background: 'none', border: 'none',

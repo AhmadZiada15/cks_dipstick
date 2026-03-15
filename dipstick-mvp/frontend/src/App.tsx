@@ -11,11 +11,13 @@
 import React, { useState, useCallback } from 'react';
 import type { AppState, AppScreen, AnalysisResponse, ClinicalIntake } from './types';
 import { EMPTY_INTAKE } from './types';
-import { analyzeImage, fetchDemo } from './api/client';
+import { analyzeImage, calibrateImage, fetchDemo } from './api/client';
 
 import LandingScreen         from './screens/LandingScreen';
 import ConsentScreen         from './screens/ConsentScreen';
 import IntakeScreen          from './screens/IntakeScreen';
+import CalibrationScreen     from './screens/CalibrationScreen';
+import TimerScreen           from './screens/TimerScreen';
 import CaptureScreen         from './screens/CaptureScreen';
 import ProcessingScreen      from './screens/ProcessingScreen';
 import ResultsScreen         from './screens/ResultsScreen';
@@ -35,6 +37,8 @@ const INITIAL_STATE: AppState = {
   error: null,
   intake: { ...EMPTY_INTAKE },
   captureQuality: null,
+  calibrationSessionId: null,
+  reactionSkipped: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -54,7 +58,47 @@ export default function App() {
 
   // --- Handle intake completion ---
   const handleIntakeComplete = useCallback((intake: ClinicalIntake) => {
-    setState((s) => ({ ...s, intake, screen: 'capture' }));
+    setState((s) => ({ ...s, intake, screen: 'calibration' }));
+  }, []);
+
+  const handleCalibration = useCallback(async (file: File) => {
+    setState((s) => ({ ...s, error: null }));
+
+    try {
+      const response = await calibrateImage(file);
+      if (!response.pads_detected) {
+        setState((s) => ({
+          ...s,
+          screen: 'calibration',
+          error: 'We could not detect a usable unused strip. Retake the photo with the full strip on a white surface.',
+        }));
+        return;
+      }
+
+      setState((s) => ({
+        ...s,
+        calibrationSessionId: response.session_id,
+        screen: 'timer',
+        error: null,
+      }));
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'Calibration failed. Please try again.';
+      setState((s) => ({
+        ...s,
+        screen: 'calibration',
+        error: msg,
+      }));
+    }
+  }, []);
+
+  const handleTimerContinue = useCallback((reactionSkipped: boolean) => {
+    setState((s) => ({
+      ...s,
+      reactionSkipped,
+      error: null,
+      screen: 'capture',
+    }));
   }, []);
 
   // --- Handle image analyze ---
@@ -70,7 +114,12 @@ export default function App() {
     }));
 
     try {
-      const result: AnalysisResponse = await analyzeImage(file, state.intake, captureMode);
+      const result: AnalysisResponse = await analyzeImage(file, {
+        intake: state.intake,
+        sessionId: state.calibrationSessionId,
+        reactionSkipped: state.reactionSkipped,
+        captureMode: captureMode,
+      });
 
       // Gate: if image validation failed, show a user-friendly error and stay on capture
       if (!result.image_validation?.is_valid) {
@@ -105,7 +154,7 @@ export default function App() {
         error: msg,
       }));
     }
-  }, [state.intake]);
+  }, [state.calibrationSessionId, state.intake, state.reactionSkipped]);
 
   // --- Handle demo mode ---
   const handleDemo = useCallback(async () => {
@@ -154,10 +203,27 @@ export default function App() {
         />
       );
 
+    case 'calibration':
+      return (
+        <CalibrationScreen
+          onBack={() => goTo('intake')}
+          onContinue={handleCalibration}
+          error={state.error}
+        />
+      );
+
+    case 'timer':
+      return (
+        <TimerScreen
+          onBack={() => goTo('calibration')}
+          onContinue={handleTimerContinue}
+        />
+      );
+
     case 'capture':
       return (
         <CaptureScreen
-          onBack={() => goTo('intake')}
+          onBack={() => goTo('timer')}
           onAnalyze={handleAnalyze}
           error={state.error}
           captureQuality={state.captureQuality}

@@ -7,6 +7,7 @@
  */
 
 import React from 'react';
+import { ShieldAlert } from 'lucide-react';
 
 interface DisclaimerCardProps {
   compact?: boolean;   // shorter version for inline use
@@ -16,7 +17,7 @@ export default function DisclaimerCard({ compact = false }: DisclaimerCardProps)
   if (compact) {
     return (
       <div style={styles.compact}>
-        <span style={styles.icon}>⚕️</span>
+        <ShieldAlert size={16} style={{ color: '#64748B', flexShrink: 0, marginTop: '2px' }} />
         <span style={styles.compactText}>
           Not a diagnosis. Consult a healthcare professional for any health concerns.
         </span>
@@ -27,7 +28,7 @@ export default function DisclaimerCard({ compact = false }: DisclaimerCardProps)
   return (
     <div style={styles.full}>
       <div style={styles.headerRow}>
-        <span style={styles.icon}>⚕️</span>
+        <ShieldAlert size={18} style={{ color: '#475569' }} />
         <span style={styles.title}>Medical Disclaimer</span>
       </div>
       <p style={styles.text}>

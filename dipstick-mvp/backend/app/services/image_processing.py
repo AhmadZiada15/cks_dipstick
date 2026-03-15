@@ -29,7 +29,7 @@ FAIL-CLOSED POLICY (v0.3):
 import cv2
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, List
+from typing import Dict, Optional, Tuple, List
 import logging
 
 from app.models.dipstick import (
@@ -39,8 +39,10 @@ from app.models.dipstick import (
 from app.services.capture import (
     CaptureMode, assess_capture_quality, CaptureQuality,
 )
+from app.services.calibration import CalibrationEntry
 
 logger = logging.getLogger(__name__)
+LabColor = Tuple[float, float, float]
 
 
 def _capture_quality_to_model(cq: CaptureQuality) -> CaptureQualityModel:
@@ -173,22 +175,29 @@ PAD_LAYOUT = {
 
 
 # ---------------------------------------------------------------------------
-# Color distance utility (Euclidean in LAB)
+# Color distance utility (Delta E in LAB)
 # ---------------------------------------------------------------------------
 
-def _lab_distance(c1: Tuple[float, float, float],
-                  c2: Tuple[float, float, float]) -> float:
+def compute_delta_e(c1: LabColor, c2: LabColor) -> float:
+    """
+    Deterministic Delta E implementation.
+    Uses CIE76 as a stable fallback in LAB space.
+    """
     return float(np.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2))))
 
 
-def _closest_label(sample_lab: Tuple[float, float, float],
+def _lab_distance(c1: LabColor, c2: LabColor) -> float:
+    return compute_delta_e(c1, c2)
+
+
+def _closest_label(sample_lab: LabColor,
                    ref_table: dict) -> Tuple[str, float]:
     """Return (best_label, confidence 0-1) by nearest LAB distance."""
     best_label = "negative"
     best_dist = float("inf")
 
     for label, ref_lab in ref_table.items():
-        d = _lab_distance(sample_lab, ref_lab)
+        d = compute_delta_e(sample_lab, ref_lab)
         if d < best_dist:
             best_dist = d
             best_label = label
@@ -330,7 +339,7 @@ def validate_strip(strip_bgr: np.ndarray) -> bool:
 
 def _sample_pad_color(strip_bgr: np.ndarray,
                       top_frac: float,
-                      height_frac: float) -> Tuple[float, float, float]:
+                      height_frac: float) -> LabColor:
     """
     Sample the average LAB color from a pad region on the strip.
     Uses a center 60% crop of the ROI to avoid edge noise.
@@ -357,6 +366,137 @@ def _sample_pad_color(strip_bgr: np.ndarray,
     A = float(mean_lab[1]) - 128.0
     B = float(mean_lab[2]) - 128.0
     return (L, A, B)
+
+
+def extract_pad_labs(strip_bgr: np.ndarray) -> Dict[str, LabColor]:
+    """Extract LAB samples for all configured pad ROIs."""
+    pad_labs: Dict[str, LabColor] = {}
+    for pad_name, (top_frac, height_frac) in PAD_LAYOUT.items():
+        pad_labs[pad_name] = _sample_pad_color(strip_bgr, top_frac, height_frac)
+    return pad_labs
+
+
+def extract_background_lab(strip_bgr: np.ndarray) -> Optional[LabColor]:
+    """
+    Estimate strip background LAB from the outer plastic margins.
+    Uses a median sample to reduce shadow and reflection noise.
+    """
+    h, w = strip_bgr.shape[:2]
+    if h < 40 or w < 10:
+        return None
+
+    edge_margin = max(2, int(w * 0.08))
+    left_edge = strip_bgr[:, :edge_margin]
+    right_edge = strip_bgr[:, w - edge_margin:]
+    edges = np.concatenate([left_edge, right_edge], axis=1)
+    if edges.size == 0:
+        return None
+
+    edges_lab = cv2.cvtColor(edges, cv2.COLOR_BGR2Lab)
+    median_lab = np.median(edges_lab.reshape(-1, 3), axis=0)
+    return (
+        float(median_lab[0]) * 100.0 / 255.0,
+        float(median_lab[1]) - 128.0,
+        float(median_lab[2]) - 128.0,
+    )
+
+
+def extract_calibration_baseline(
+    image_bytes: bytes,
+) -> Optional[Tuple[Dict[str, LabColor], LabColor]]:
+    """
+    Build a per-session calibration profile from an unused strip photo.
+    Returns None when a usable strip/background cannot be extracted.
+    """
+    try:
+        arr = np.frombuffer(image_bytes, dtype=np.uint8)
+        image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    except Exception as exc:
+        logger.warning(f"Calibration image decode failed: {exc}")
+        return None
+
+    if image is None:
+        return None
+
+    detection = detect_strip(image)
+    if detection.strip_image is None or not validate_strip(detection.strip_image):
+        return None
+
+    strip = detection.strip_image
+    background_lab = extract_background_lab(strip)
+    if background_lab is None:
+        return None
+
+    pad_labs = extract_pad_labs(strip)
+    if len(pad_labs) != len(PAD_LAYOUT):
+        return None
+
+    return pad_labs, background_lab
+
+
+def _subtract_lab(c1: LabColor, c2: LabColor) -> LabColor:
+    return (c1[0] - c2[0], c1[1] - c2[1], c1[2] - c2[2])
+
+
+def _apply_calibrated_matching(
+    strip_bgr: np.ndarray,
+    calibration: CalibrationEntry,
+    pad_results: dict,
+    pad_confidences: dict,
+) -> bool:
+    """
+    Re-score semi-quantitative pads using session calibration if available.
+    Falls back cleanly when any calibration signal is missing.
+    """
+    scan_background_lab = extract_background_lab(strip_bgr)
+    if scan_background_lab is None:
+        return False
+
+    raw_pad_labs = extract_pad_labs(strip_bgr)
+    if len(raw_pad_labs) != len(PAD_LAYOUT):
+        return False
+
+    global_delta = _subtract_lab(scan_background_lab, calibration.baseline_background)
+    baseline_deltas: List[float] = []
+
+    semi_pads = [
+        ("protein", PROTEIN_REF),
+        ("blood", BLOOD_REF),
+        ("leukocytes", LEUKOCYTE_REF),
+        ("glucose", GLUCOSE_REF),
+        ("ketones", KETONE_REF),
+        ("bilirubin", BILIRUBIN_REF),
+        ("urobilinogen", UROBILINOGEN_REF),
+    ]
+
+    for pad_name, ref_table in semi_pads:
+        raw_lab = raw_pad_labs.get(pad_name)
+        baseline_lab = calibration.baseline_pads.get(pad_name)
+        if raw_lab is None or baseline_lab is None:
+            return False
+
+        corrected_lab = _subtract_lab(raw_lab, global_delta)
+        baseline_deltas.append(compute_delta_e(corrected_lab, baseline_lab))
+        label, conf = _closest_label(corrected_lab, ref_table)
+        pad_results[pad_name] = label
+        pad_confidences[pad_name] = conf
+
+    nitrite_lab = raw_pad_labs.get("nitrite")
+    nitrite_baseline = calibration.baseline_pads.get("nitrite")
+    if nitrite_lab is None or nitrite_baseline is None:
+        return False
+
+    corrected_nitrite = _subtract_lab(nitrite_lab, global_delta)
+    baseline_deltas.append(compute_delta_e(corrected_nitrite, nitrite_baseline))
+    nit_label, nit_conf = _closest_label(corrected_nitrite, NITRITE_REF)
+    pad_results["nitrite"] = nit_label
+    pad_confidences["nitrite"] = nit_conf
+
+    logger.info(
+        "Applied session calibration with mean baseline delta %.2f",
+        float(np.mean(baseline_deltas)) if baseline_deltas else 0.0,
+    )
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -419,6 +559,7 @@ def _estimate_specific_gravity(strip_bgr: np.ndarray,
 def extract_dipstick_values(
     image_bytes: bytes,
     capture_mode: CaptureMode = CaptureMode.FREE_CAPTURE,
+    calibration: Optional[CalibrationEntry] = None,
 ) -> ImageProcessingResult:
     """
     Entry point: takes raw image bytes, returns an ImageProcessingResult.
@@ -520,6 +661,10 @@ def extract_dipstick_values(
     nit_label, nit_conf = _closest_label(nit_lab, NITRITE_REF)
     pad_results["nitrite"] = nit_label
     pad_confidences["nitrite"] = nit_conf
+
+    if calibration is not None:
+        if not _apply_calibrated_matching(strip, calibration, pad_results, pad_confidences):
+            logger.info("Calibration provided but unusable; falling back to raw matching")
 
     # pH (hue-based)
     ph_top, ph_h = PAD_LAYOUT["ph"]

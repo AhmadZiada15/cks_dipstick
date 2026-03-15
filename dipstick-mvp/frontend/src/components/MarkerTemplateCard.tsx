@@ -8,17 +8,10 @@ interface MarkerTemplateCardProps {
 
 export default function MarkerTemplateCard({
   compact = false,
-  title = 'Marker-Assisted Template',
-  subtitle = 'Place the strip inside the lane and keep the fiducial marker visible.',
+  title = 'Place the strip on the guide card.',
 }: MarkerTemplateCardProps) {
   return (
     <div style={{ ...styles.card, ...(compact ? styles.cardCompact : {}) }}>
-      <div style={styles.copy}>
-        <div style={styles.eyebrow}>Standardized Capture</div>
-        <div style={styles.title}>{title}</div>
-        <div style={styles.subtitle}>{subtitle}</div>
-      </div>
-
       <div style={{ ...styles.template, ...(compact ? styles.templateCompact : {}) }}>
         <div style={styles.markerWrap}>
           <div style={styles.markerGrid}>
@@ -84,34 +77,13 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '14px',
     padding: '16px',
     borderRadius: '16px',
-    background: 'linear-gradient(135deg, #F8FAFC 0%, #ECFEFF 100%)',
-    border: '1px solid #CFFAFE',
+    border: '1px solid #E2E8F0',
+    backgroundColor: '#FFFFFF',
   },
   cardCompact: {
-    padding: '12px',
-    gap: '10px',
-  },
-  copy: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-  },
-  eyebrow: {
-    fontSize: '11px',
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: '#0F766E',
-  },
-  title: {
-    fontSize: '16px',
-    fontWeight: 700,
-    color: '#0F172A',
-  },
-  subtitle: {
-    fontSize: '13px',
-    lineHeight: 1.45,
-    color: '#475569',
+    padding: '0px',
+    border: 'none',
+    boxShadow: 'none',
   },
   template: {
     position: 'relative',
@@ -122,14 +94,15 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '128px',
     padding: '14px',
     borderRadius: '18px',
-    backgroundColor: '#FFFFFF',
     boxShadow: 'inset 0 0 0 1px #E2E8F0',
   },
   templateCompact: {
     minHeight: '108px',
-    padding: '10px',
+    padding: '0px',
     gap: '10px',
     gridTemplateColumns: '60px 1fr 24px',
+    boxShadow: 'none',
+    border: 'none',
   },
   markerWrap: {
     display: 'flex',
@@ -156,19 +129,19 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#0F172A',
   },
   cellAccent: {
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#8B6A4D',
   },
   markerLabel: {
     fontSize: '11px',
     fontWeight: 700,
-    color: '#0F766E',
+    color: '#6F4E37',
   },
   lane: {
     position: 'relative',
     height: '100%',
     minHeight: '78px',
     borderRadius: '12px',
-    border: '2px dashed #14B8A6',
+    border: '2px dashed #8B6A4D',
     backgroundColor: '#F8FAFC',
     display: 'flex',
     alignItems: 'center',
@@ -183,7 +156,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
-    color: '#0F766E',
+    color: '#6F4E37',
   },
   stripGhost: {
     width: '100%',

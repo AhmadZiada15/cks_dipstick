@@ -111,7 +111,7 @@ export default function ClinicianDashboard({ onBack }: ClinicianDashboardProps) 
 
       {/* Summary Stats */}
       <div style={styles.statsRow}>
-        <StatCard label="Total Scans" value={String(history.length)} color="#4F46E5" />
+        <StatCard label="Total Scans" value={String(history.length)} color="#8B6A4D" />
         <StatCard label="High Urgency" value={String(highUrgencyCount)} color="#DC2626" />
         <StatCard label="Latest Protein" value={latestProtein} color="#D97706" />
       </div>
@@ -232,7 +232,7 @@ function ProteinTrendChart({ entries }: { entries: PatientHistoryEntry[] }) {
       })}
 
       {/* Line */}
-      <path d={linePath} fill="none" stroke="#4F46E5" strokeWidth={2} strokeLinejoin="round" />
+      <path d={linePath} fill="none" stroke="#8B6A4D" strokeWidth={2} strokeLinejoin="round" />
 
       {/* Area fill */}
       <path
@@ -242,8 +242,8 @@ function ProteinTrendChart({ entries }: { entries: PatientHistoryEntry[] }) {
       />
       <defs>
         <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4F46E5" />
-          <stop offset="100%" stopColor="#4F46E5" stopOpacity={0} />
+          <stop offset="0%" stopColor="#8B6A4D" />
+          <stop offset="100%" stopColor="#8B6A4D" stopOpacity={0} />
         </linearGradient>
       </defs>
 
@@ -254,7 +254,7 @@ function ProteinTrendChart({ entries }: { entries: PatientHistoryEntry[] }) {
           cx={p.x}
           cy={p.y}
           r={3.5}
-          fill={p.entry.urgency === 'high' ? '#DC2626' : '#4F46E5'}
+          fill={p.entry.urgency === 'high' ? '#DC2626' : '#8B6A4D'}
           stroke="#fff"
           strokeWidth={1.5}
         />
@@ -345,7 +345,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '40px',
     height: '40px',
     border: '4px solid #E2E8F0',
-    borderTopColor: '#4F46E5',
+    borderTopColor: '#8B6A4D',
     borderRadius: '50%',
     animation: 'spin 0.8s linear infinite',
   },
@@ -365,7 +365,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #E2E8F0',
     borderRadius: '8px',
     backgroundColor: '#FFFFFF',
-    color: '#4F46E5',
+    color: '#8B6A4D',
     fontSize: '13px',
     fontWeight: 600,
     cursor: 'pointer',

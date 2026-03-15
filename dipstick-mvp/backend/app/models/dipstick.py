@@ -201,6 +201,12 @@ class ImageValidation(BaseModel):
     )
 
 
+class CalibrationResponse(BaseModel):
+    """Response returned after scanning an unused strip for calibration."""
+    session_id: str
+    pads_detected: bool
+
+
 # Minimum overall confidence to proceed with clinical interpretation.
 # Below this threshold the pipeline returns an error, not fake results.
 MIN_CONFIDENCE_THRESHOLD = 0.35
@@ -359,6 +365,7 @@ class AnalysisResponse(BaseModel):
     interpretation: Optional[InterpretationResult] = None
     explanation: Optional[Explanation] = None
     fhir_bundle: Optional[dict] = None
+    reaction_time_verified: bool = True
 
     integration_status: FHIRIntegrationStatus = Field(
         default_factory=FHIRIntegrationStatus,

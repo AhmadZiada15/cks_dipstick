@@ -124,7 +124,7 @@ function ActionCTA({
 }) {
   const isHigh = urgency === 'high';
   const isMod = urgency === 'moderate';
-  const bgColor = isHigh || isMod ? '#0F2744' : '#0D9488';
+  const bgColor = isHigh || isMod ? '#6F4E37' : '#8B6A4D';
   const ctaText = isHigh
     ? 'Find urgent care nearby'
     : isMod
@@ -178,10 +178,10 @@ function BiomarkerRow({
 }) {
   const valStr = typeof value === 'number' ? String(value) : value;
   const isTrace = valStr === 'trace';
-  const dotColor = isAbnormal ? '#DC2626' : isTrace ? '#D97706' : '#0D9488';
+  const dotColor = isAbnormal ? '#DC2626' : isTrace ? '#D97706' : '#8B6A4D';
   const badgeText = isAbnormal ? 'Elevated' : isTrace ? 'Trace' : 'Normal';
-  const badgeBg = isAbnormal ? '#FEE2E2' : isTrace ? '#FEF3C7' : '#F0FDF4';
-  const badgeColor = isAbnormal ? '#DC2626' : isTrace ? '#D97706' : '#0D9488';
+  const badgeBg = isAbnormal ? '#FEE2E2' : isTrace ? '#FEF3C7' : '#F6EFE8';
+  const badgeColor = isAbnormal ? '#DC2626' : isTrace ? '#D97706' : '#8B6A4D';
 
   return (
     <div style={bioStyles.row}>
@@ -331,7 +331,7 @@ export default function ResultsScreen({ result, onBack, onNextSteps }: ResultsSc
           <button
             onClick={onBack}
             style={{
-              padding: '12px 24px', backgroundColor: '#0D9488', color: '#FFFFFF',
+              padding: '12px 24px', backgroundColor: '#8B6A4D', color: '#FFFFFF',
               border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
             }}
           >
@@ -400,6 +400,12 @@ export default function ResultsScreen({ result, onBack, onNextSteps }: ResultsSc
         </div>
       )}
 
+      {!result.reaction_time_verified && (
+        <div style={styles.reactionBanner}>
+          Reaction time not verified — results may be less accurate.
+        </div>
+      )}
+
       {/* Pathway + date subtitle */}
       <div style={styles.pathwayRow}>
         <span style={styles.pathwayPill}>{pathwayLabel}</span>
@@ -450,7 +456,7 @@ export default function ResultsScreen({ result, onBack, onNextSteps }: ResultsSc
                     ...styles.flagCard,
                     borderLeftColor:
                       flag.severity === 'critical' ? '#DC2626' :
-                      flag.severity === 'warning' ? '#D97706' : '#2563EB',
+                      flag.severity === 'warning' ? '#D97706' : '#8B6A4D',
                   }}
                 >
                   <div style={styles.flagLabel}>{flag.label}</div>
@@ -581,9 +587,9 @@ const styles: Record<string, React.CSSProperties> = {
   pathwayPill: {
     fontSize: '11px',
     fontWeight: 700,
-    color: '#0D9488',
-    backgroundColor: '#F0FDFA',
-    border: '1px solid #99F6E4',
+    color: '#8B6A4D',
+    backgroundColor: '#F6EFE8',
+    border: '1px solid #D8C2AE',
     borderRadius: '20px',
     padding: '2px 10px',
     textTransform: 'uppercase' as const,
@@ -615,7 +621,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tabBtnActive: {
     backgroundColor: '#FFFFFF',
-    color: '#0D9488',
+    color: '#8B6A4D',
     boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
   },
   section: {
@@ -659,7 +665,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '28px',
     height: '28px',
     borderRadius: '50%',
-    backgroundColor: '#0D9488',
+    backgroundColor: '#8B6A4D',
     color: '#FFFFFF',
     fontSize: '13px',
     fontWeight: 700,
@@ -698,7 +704,7 @@ const styles: Record<string, React.CSSProperties> = {
   evidenceLink: {
     display: 'block',
     fontSize: '12px',
-    color: '#0D9488',
+    color: '#8B6A4D',
     textDecoration: 'none',
     padding: '5px 0',
     borderBottom: '1px solid #E2E8F0',
@@ -707,7 +713,7 @@ const styles: Record<string, React.CSSProperties> = {
   shareBtn: {
     width: '100%',
     height: '48px',
-    backgroundColor: '#0F2744',
+    backgroundColor: '#6F4E37',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: '14px',
@@ -735,7 +741,7 @@ const styles: Record<string, React.CSSProperties> = {
   confValue: {
     fontSize: '14px',
     fontWeight: 700,
-    color: '#0D9488',
+    color: '#8B6A4D',
   },
   fhirHeader: {
     display: 'flex',
@@ -745,8 +751,8 @@ const styles: Record<string, React.CSSProperties> = {
   fhirBadge: {
     fontSize: '12px',
     fontWeight: 700,
-    backgroundColor: '#DCFCE7',
-    color: '#15803D',
+    backgroundColor: '#F6EFE8',
+    color: '#8B6A4D',
     padding: '4px 10px',
     borderRadius: '20px',
   },
@@ -805,6 +811,16 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     padding: '0 0 0 8px',
     lineHeight: '1',
+  },
+  reactionBanner: {
+    marginTop: '12px',
+    border: '1px solid #E7D7C8',
+    backgroundColor: '#F9F4EE',
+    borderRadius: '12px',
+    padding: '12px 14px',
+    fontSize: '13px',
+    lineHeight: 1.5,
+    color: '#7C5A3A',
   },
 };
 

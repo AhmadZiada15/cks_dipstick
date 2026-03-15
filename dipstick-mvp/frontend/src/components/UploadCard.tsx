@@ -51,8 +51,8 @@ export default function UploadCard({ onFileSelected, previewUrl }: UploadCardPro
       <div
         style={{
           ...styles.dropZone,
-          borderColor: dragging ? '#4F46E5' : '#CBD5E1',
-          background: dragging ? '#EEF2FF' : '#F8FAFC',
+          borderColor: dragging ? '#8B6A4D' : '#CBD5E1',
+          background: dragging ? '#F6EFE8' : '#F8FAFC',
         }}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -72,50 +72,71 @@ export default function UploadCard({ onFileSelected, previewUrl }: UploadCardPro
         ) : (
           /* Empty state */
           <div style={styles.emptyState}>
-            <div style={styles.iconCircle}>⌘</div>
-            <p style={styles.primaryText}>Capture the strip with the marker card</p>
-            <p style={styles.secondaryText}>
-              Keep the fiducial marker and the full strip lane visible in one frame
-            </p>
+            <div style={styles.iconFrame}>
+              <UploadGlyph />
+            </div>
+            <div style={styles.emptyCopy}>
+              <p style={styles.primaryText}>Capture the strip.</p>
+              <p style={styles.secondaryText}>Keep the strip flat and fully in frame.</p>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Camera vs. Gallery buttons */}
-      <div style={styles.buttonRow}>
-        <button
-          style={styles.actionBtn}
-          onClick={() => {
-            // camera button — open camera on mobile
-            if (inputRef.current) {
-              inputRef.current.setAttribute('capture', 'environment');
-              inputRef.current.click();
-            }
-          }}
-        >
-          📷 Camera
-        </button>
-        <button
-          style={{ ...styles.actionBtn, ...styles.galleryBtn }}
-          onClick={() => {
-            if (inputRef.current) {
-              inputRef.current.removeAttribute('capture');
-              inputRef.current.click();
-            }
-          }}
-        >
-          🖼 Gallery
-        </button>
-      </div>
-
-      {/* Tip */}
-      <div style={styles.tipBox}>
-        <span style={styles.tipIcon}>💡</span>
-        <span style={styles.tipText}>
-          For best results, keep the marker visible, lay the strip flat, and avoid glare.
-        </span>
-      </div>
     </div>
+  );
+}
+
+function UploadGlyph() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 16V7M12 7L8.5 10.5M12 7L15.5 10.5M6 17.5H18"
+        stroke="#7C5A3A"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="#CBD5E1" />
+    </svg>
+  );
+}
+
+function CameraGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 7L9.2 5.5C9.39 5.26 9.68 5.12 10 5.12H14C14.32 5.12 14.61 5.26 14.8 5.5L16 7H18C19.1 7 20 7.9 20 9V16C20 17.1 19.1 18 18 18H6C4.9 18 4 17.1 4 16V9C4 7.9 4.9 7 6 7H8Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12.5" r="3.25" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function GalleryGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="4"
+        y="5"
+        width="16"
+        height="14"
+        rx="2.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M7.5 15L10.25 12.25C10.64 11.86 11.27 11.86 11.66 12.25L13 13.59L14.84 11.75C15.23 11.36 15.86 11.36 16.25 11.75L18 13.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="9" cy="9.5" r="1.25" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -123,12 +144,12 @@ const styles: Record<string, React.CSSProperties> = {
   wrapper: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
+    gap: '10px',
   },
   dropZone: {
-    border: '2px dashed',
-    borderRadius: '16px',
-    minHeight: '220px',
+    border: '1px solid',
+    borderRadius: '12px',
+    minHeight: '184px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -144,76 +165,60 @@ const styles: Record<string, React.CSSProperties> = {
   },
   previewImg: {
     width: '100%',
-    maxHeight: '260px',
+    maxHeight: '220px',
     objectFit: 'contain',
-    borderRadius: '12px',
+    borderRadius: '10px',
   },
   changeLabel: {
-    marginTop: '8px',
-    fontSize: '13px',
+    marginTop: '10px',
+    fontSize: '12px',
     color: '#64748B',
-    paddingBottom: '8px',
+    paddingBottom: '10px',
+    fontWeight: 500,
   },
   emptyState: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '8px',
-    padding: '24px',
+    gap: '14px',
+    padding: '20px',
+    textAlign: 'center',
   },
-  iconCircle: {
-    fontSize: '40px',
-    lineHeight: 1,
+  iconFrame: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '12px',
+    border: '1px solid #E2E8F0',
+    backgroundColor: '#FFFFFF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyCopy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    alignItems: 'center',
+  },
+  eyebrow: {
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.6px',
+    textTransform: 'uppercase',
+    color: '#64748B',
+    margin: 0,
   },
   primaryText: {
-    fontSize: '16px',
+    fontSize: '15px',
     fontWeight: 600,
-    color: '#1E293B',
+    color: '#0F172A',
     margin: 0,
-    textAlign: 'center',
   },
   secondaryText: {
     fontSize: '13px',
     color: '#64748B',
     margin: 0,
-    textAlign: 'center',
+    lineHeight: 1.4,
     maxWidth: '220px',
-  },
-  buttonRow: {
-    display: 'flex',
-    gap: '10px',
-  },
-  actionBtn: {
-    flex: 1,
-    padding: '12px',
-    border: 'none',
-    borderRadius: '12px',
-    backgroundColor: '#4F46E5',
-    color: '#FFFFFF',
-    fontSize: '15px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'opacity 0.15s',
-  },
-  galleryBtn: {
-    backgroundColor: '#E0E7FF',
-    color: '#4F46E5',
-  },
-  tipBox: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '8px',
-    backgroundColor: '#EFF6FF',
-    borderRadius: '12px',
-    padding: '12px',
-  },
-  tipIcon: {
-    fontSize: '16px',
-    flexShrink: 0,
-  },
-  tipText: {
-    fontSize: '13px',
-    color: '#1D4ED8',
-    lineHeight: 1.5,
   },
 };

@@ -101,7 +101,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   summaryText: {
     fontSize: '15px',
-    color: '#1E293B',
+    color: '#5B4634',
     lineHeight: 1.6,
     margin: 0,
     fontWeight: 500,
@@ -144,7 +144,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '8px',
   },
   bullet: {
-    color: '#4F46E5',
+    color: '#8B6A4D',
     fontWeight: 700,
     fontSize: '18px',
     lineHeight: '1.4',

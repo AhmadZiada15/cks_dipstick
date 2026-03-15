@@ -48,7 +48,7 @@ export default function NextStepsScreen({ result, intake, onBack, onStartOver }:
             Clinical interpretation is not available. Please go back and try scanning again.
           </p>
           <button onClick={onStartOver} style={{
-            padding: '12px 24px', backgroundColor: '#0D9488', color: '#FFFFFF',
+            padding: '12px 24px', backgroundColor: '#8B6A4D', color: '#FFFFFF',
             border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
           }}>
             Start Over
@@ -288,7 +288,7 @@ const styles: Record<string, React.CSSProperties> = {
   evidenceLink: {
     display: 'block',
     fontSize: '12px',
-    color: '#0D9488',
+    color: '#8B6A4D',
     textDecoration: 'none',
     padding: '5px 0',
     borderBottom: '1px solid #E2E8F0',
@@ -296,7 +296,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   startOverBtn: {
     padding: '16px',
-    border: '2px solid #CCFBF1',
+    border: '2px solid #E8D9CA',
     borderRadius: '14px',
     backgroundColor: '#FFFFFF',
     color: BRAND_TEAL,
@@ -307,7 +307,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '8px',
   },
   physicianCard: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F6EFE8',
     border: `1.5px solid ${BRAND_TEAL}55`,
     borderRadius: '14px',
     padding: '16px',
@@ -317,7 +317,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   physicianIcon: { fontSize: '26px', flexShrink: 0 },
   physicianLabel: {
-    fontSize: '11px', fontWeight: 700, color: '#065F46',
+    fontSize: '11px', fontWeight: 700, color: '#7C5A3A',
     textTransform: 'uppercase' as const, letterSpacing: '0.7px', marginBottom: '4px',
   },
   physicianName: { fontSize: '16px', fontWeight: 700, color: '#1E293B' },

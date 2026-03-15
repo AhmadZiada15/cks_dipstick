@@ -9,6 +9,7 @@
  */
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { Lock, ShieldAlert, AlertTriangle, X as CloseIcon, Zap } from 'lucide-react';
 
 interface GuidedCaptureViewProps {
   onCapture: (file: File) => void;
@@ -314,7 +315,7 @@ export default function GuidedCaptureView({ onCapture, onCancel }: GuidedCapture
 
   // Permission denied, error, or insecure context
   if (cameraState === 'denied' || cameraState === 'error' || cameraState === 'insecure') {
-    const icon = cameraState === 'insecure' ? '🔐' : cameraState === 'denied' ? '🔒' : '⚠️';
+    const icon = cameraState === 'insecure' ? <Lock size={48} /> : cameraState === 'denied' ? <ShieldAlert size={48} /> : <AlertTriangle size={48} />;
     const title =
       cameraState === 'insecure' ? 'HTTPS required for live camera' :
       cameraState === 'denied'   ? 'Camera access denied' :
@@ -379,7 +380,7 @@ export default function GuidedCaptureView({ onCapture, onCancel }: GuidedCapture
           <rect
             x="155" y="145" width="90" height="310" rx="6"
             fill="none"
-            stroke="#0D9488"
+            stroke="#8B6A4D"
             strokeWidth="2"
             strokeDasharray="8 4"
           />
@@ -398,17 +399,17 @@ export default function GuidedCaptureView({ onCapture, onCancel }: GuidedCapture
           <rect x="81" y="445" width="8" height="8" fill="#0F172A" />
           <rect x="49" y="453" width="8" height="8" fill="#0F172A" />
           <rect x="57" y="453" width="8" height="8" fill="#FFFFFF" />
-          <rect x="65" y="453" width="8" height="8" fill="#14B8A6" />
+          <rect x="65" y="453" width="8" height="8" fill="#8B6A4D" />
           <rect x="73" y="453" width="8" height="8" fill="#FFFFFF" />
           <rect x="81" y="453" width="8" height="8" fill="#0F172A" />
           <rect x="49" y="461" width="8" height="8" fill="#FFFFFF" />
-          <rect x="57" y="461" width="8" height="8" fill="#14B8A6" />
+          <rect x="57" y="461" width="8" height="8" fill="#8B6A4D" />
           <rect x="65" y="461" width="8" height="8" fill="#0F172A" />
-          <rect x="73" y="461" width="8" height="8" fill="#14B8A6" />
+          <rect x="73" y="461" width="8" height="8" fill="#8B6A4D" />
           <rect x="81" y="461" width="8" height="8" fill="#FFFFFF" />
           <rect x="49" y="469" width="8" height="8" fill="#0F172A" />
           <rect x="57" y="469" width="8" height="8" fill="#FFFFFF" />
-          <rect x="65" y="469" width="8" height="8" fill="#14B8A6" />
+          <rect x="65" y="469" width="8" height="8" fill="#8B6A4D" />
           <rect x="73" y="469" width="8" height="8" fill="#FFFFFF" />
           <rect x="81" y="469" width="8" height="8" fill="#0F172A" />
           <rect x="49" y="477" width="8" height="8" fill="#0F172A" />
@@ -430,7 +431,7 @@ export default function GuidedCaptureView({ onCapture, onCancel }: GuidedCapture
         {/* Top controls */}
         <div style={styles.topBar}>
           <button style={styles.topBtn} onClick={onCancel} aria-label="Close camera">
-            ✕
+            <CloseIcon size={20} />
           </button>
           <span style={styles.topTitle}>Scan Strip</span>
           {flashSupported ? (
@@ -439,7 +440,7 @@ export default function GuidedCaptureView({ onCapture, onCancel }: GuidedCapture
               onClick={toggleFlash}
               aria-label="Toggle flash"
             >
-              ⚡
+              <Zap size={20} />
             </button>
           ) : (
             <div style={{ width: 40 }} />
@@ -626,7 +627,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid rgba(255,255,255,0.18)',
   },
   statusPillOk: {
-    backgroundColor: 'rgba(13, 148, 136, 0.24)',
+    backgroundColor: 'rgba(139, 106, 77, 0.24)',
   },
   statusPillWarn: {
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
@@ -655,7 +656,7 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
   },
   guidanceTitle: {
-    color: '#99F6E4',
+    color: '#E4D5C7',
     fontSize: '11px',
     fontWeight: 700,
     letterSpacing: '0.08em',
@@ -670,7 +671,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
   },
   autoCaptureText: {
-    color: '#99F6E4',
+    color: '#E4D5C7',
     fontSize: '12px',
     fontWeight: 700,
     margin: 0,
@@ -695,7 +696,7 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'opacity 0.15s',
   },
   shutterBtnReady: {
-    boxShadow: '0 0 0 8px rgba(20, 184, 166, 0.18), 0 0 24px rgba(45, 212, 191, 0.55)',
+    boxShadow: '0 0 0 8px rgba(139, 106, 77, 0.18), 0 0 24px rgba(139, 106, 77, 0.55)',
   },
   shutterInner: {
     width: '58px',
@@ -742,7 +743,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   fallbackBtn: {
     padding: '12px 24px',
-    backgroundColor: '#0D9488',
+    backgroundColor: '#8B6A4D',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: '12px',

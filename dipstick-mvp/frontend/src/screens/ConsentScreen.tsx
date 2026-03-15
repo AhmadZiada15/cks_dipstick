@@ -77,7 +77,7 @@ export default function ConsentScreen({ onBack, onConsent }: ConsentScreenProps)
               border: checked[item.id]
                 ? `2px solid ${BRAND_TEAL}`
                 : '1.5px solid #E2E8F0',
-              backgroundColor: checked[item.id] ? '#F0FDF4' : '#FFFFFF',
+              backgroundColor: checked[item.id] ? '#F6EFE8' : '#FFFFFF',
             }}
           >
             {/* Checkbox */}
@@ -106,7 +106,7 @@ export default function ConsentScreen({ onBack, onConsent }: ConsentScreenProps)
             ...styles.agreeBtn,
             backgroundColor: allChecked ? BRAND_TEAL : '#CBD5E1',
             cursor:          allChecked ? 'pointer' : 'not-allowed',
-            boxShadow:       allChecked ? '0 4px 14px rgba(13,148,136,0.35)' : 'none',
+            boxShadow:       allChecked ? '0 4px 14px rgba(111,78,55,0.28)' : 'none',
           }}
           onClick={() => { if (allChecked) onConsent(); }}
           disabled={!allChecked}
@@ -139,7 +139,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '99px', transition: 'width 0.3s ease',
   },
   introCard: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F6EFE8',
     border: `1.5px solid ${BRAND_TEAL}33`,
     borderRadius: '14px',
     padding: '16px',

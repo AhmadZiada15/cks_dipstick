@@ -96,20 +96,20 @@ export default function ProcessingScreen({ previewUrl, intake }: ProcessingScree
                 <div
                   style={{
                     ...styles.stepIndicator,
-                    backgroundColor: isDone ? '#0D9488' : isActive ? '#F0FDFA' : '#F1F5F9',
-                    borderColor: isDone ? '#0D9488' : isActive ? '#0D9488' : '#E2E8F0',
+                    backgroundColor: isDone ? '#8B6A4D' : isActive ? '#F6EFE8' : '#F1F5F9',
+                    borderColor: isDone ? '#8B6A4D' : isActive ? '#8B6A4D' : '#E2E8F0',
                   }}
                 >
                   {isDone ? (
                     <span style={{ color: '#FFFFFF', fontSize: '12px' }}>&#10003;</span>
                   ) : (
-                    <span style={{ fontSize: '13px', color: isActive ? '#0D9488' : '#94A3B8' }}>{i + 1}</span>
+                    <span style={{ fontSize: '13px', color: isActive ? '#8B6A4D' : '#94A3B8' }}>{i + 1}</span>
                   )}
                 </div>
                 <span
                   style={{
                     ...styles.stepLabel,
-                    color: isDone ? '#1E293B' : isActive ? '#0D9488' : '#94A3B8',
+                    color: isDone ? '#1E293B' : isActive ? '#8B6A4D' : '#94A3B8',
                     fontWeight: isActive ? 700 : isDone ? 600 : 400,
                   }}
                 >
@@ -139,9 +139,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignSelf: 'center',
     fontSize: '12px',
     fontWeight: 700,
-    color: '#0D9488',
-    backgroundColor: '#F0FDFA',
-    border: '1px solid #99F6E4',
+    color: '#8B6A4D',
+    backgroundColor: '#F6EFE8',
+    border: '1px solid #D8C2AE',
     borderRadius: '20px',
     padding: '4px 14px',
     textTransform: 'uppercase' as const,
@@ -154,7 +154,7 @@ const styles: Record<string, React.CSSProperties> = {
     maxHeight: '200px',
     display: 'flex',
     justifyContent: 'center',
-    backgroundColor: '#0F2744',
+    backgroundColor: '#6F4E37',
   },
   previewImg: {
     width: '100%',
@@ -167,8 +167,8 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     height: '3px',
-    backgroundColor: '#0D9488',
-    boxShadow: '0 0 10px 2px rgba(13,148,136,0.5)',
+    backgroundColor: '#8B6A4D',
+    boxShadow: '0 0 10px 2px rgba(139,106,77,0.45)',
     animation: 'scan 2s linear infinite',
     top: '50%',
   },
@@ -180,7 +180,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#0D9488',
+    backgroundColor: '#8B6A4D',
     borderRadius: '99px',
     transition: 'width 0.5s ease',
   },

@@ -12,6 +12,7 @@ import UploadCard from '../components/UploadCard';
 import GuidedCaptureView from '../components/GuidedCaptureView';
 import DisclaimerCard from '../components/DisclaimerCard';
 import MarkerTemplateCard from '../components/MarkerTemplateCard';
+import { Camera, Upload, RefreshCcw, Activity, Info, File as FileIcon, CheckCircle2, Check, X, Sun, Scaling, Target, Clock, AlertTriangle } from 'lucide-react';
 import type { CaptureQuality } from '../types';
 
 interface CaptureScreenProps {
@@ -71,7 +72,7 @@ export default function CaptureScreen({ onBack, onAnalyze, error, captureQuality
         {/* Error banner with quality feedback */}
         {error && (
           <div style={styles.errorBanner}>
-            <span style={styles.errorIcon}>⚠️</span>
+            <AlertTriangle style={styles.errorIcon} size={20} />
             <div style={styles.errorContent}>
               <span style={styles.errorTitle}>Strip not recognised</span>
               <span style={styles.errorText}>{error}</span>
@@ -109,23 +110,28 @@ export default function CaptureScreen({ onBack, onAnalyze, error, captureQuality
             style={{ ...styles.tabBtn, ...(tab === 'guided' ? styles.tabBtnActive : {}) }}
             onClick={() => { setTab('guided'); handleRetake(); }}
           >
-            📷 Guided Capture
+            <Camera size={16} style={styles.tabIcon} /> Guided Capture
           </button>
           <button
             style={{ ...styles.tabBtn, ...(tab === 'upload' ? styles.tabBtnActive : {}) }}
             onClick={() => { setTab('upload'); handleRetake(); }}
           >
-            📁 Upload Photo
+            <Upload size={16} style={styles.tabIcon} /> Upload Photo
           </button>
         </div>
 
+        {/* High-level title instruction */}
+        {(tab !== 'guided' || showReview) && (
+          <div style={styles.headerWrap}>
+            <p style={styles.headerInstruction}>
+              Place the strip on the guide card.
+            </p>
+          </div>
+        )}
+
         {(tab !== 'guided' || showReview) && (
           <div style={styles.templateCardWrap}>
-            <MarkerTemplateCard
-              compact
-              title="Use the guide card for faster alignment"
-              subtitle="A single fiducial marker gives the camera a fixed anchor, similar to mobile document scanning."
-            />
+            <MarkerTemplateCard compact />
           </div>
         )}
 
@@ -145,10 +151,10 @@ export default function CaptureScreen({ onBack, onAnalyze, error, captureQuality
             </div>
             <div style={styles.reviewButtons}>
               <button style={styles.retakeBtn} onClick={handleRetake}>
-                ↺ Retake
+                <RefreshCcw size={16} style={styles.tabIcon} /> Retake
               </button>
               <button style={styles.analyzeBtn} onClick={handleAnalyze}>
-                🔬 Analyze Strip
+                <Activity size={18} style={styles.tabIcon} /> Analyze Strip
               </button>
             </div>
           </div>
@@ -157,24 +163,16 @@ export default function CaptureScreen({ onBack, onAnalyze, error, captureQuality
         {/* === UPLOAD TAB === */}
         {tab === 'upload' && (
           <>
-            {/* Instruction pill */}
-            <div style={styles.instructionBadge}>
-              <span>📋</span>
-              <span style={styles.instructionText}>
-                For best results, place your dipstick on the guide card so the marker and strip lane are both visible
-              </span>
-            </div>
-
             <UploadCard onFileSelected={handleFileSelected} previewUrl={previewUrl} />
 
             {file && (
               <div style={styles.fileInfo}>
-                <span style={styles.fileIcon}>📁</span>
+                <FileIcon size={18} style={{ color: '#64748B' }} />
                 <div style={styles.fileDetails}>
                   <span style={styles.fileName}>{file.name}</span>
                   <span style={styles.fileSize}>{(file.size / 1024).toFixed(0)} KB</span>
                 </div>
-                <span style={styles.checkMark}>✓</span>
+                <CheckCircle2 size={18} style={{ color: '#8B6A4D' }} />
               </div>
             )}
 
@@ -187,15 +185,15 @@ export default function CaptureScreen({ onBack, onAnalyze, error, captureQuality
               onClick={handleAnalyze}
               disabled={!file}
             >
-              {file ? '🔬 Analyze Strip' : 'Select a photo to continue'}
+              Continue
             </button>
 
             <div style={styles.tipsCard}>
-              <h3 style={styles.tipsTitle}>Tips for accurate results</h3>
+              <h3 style={styles.tipsTitle}>Tips</h3>
               {TIPS.map((tip, i) => (
                 <div key={i} style={styles.tipRow}>
-                  <span>{tip.icon}</span>
-                  <span style={styles.tipText}>{tip.text}</span>
+                  <span style={styles.bullet}>•</span>
+                  <span style={styles.tipText}>{tip}</span>
                 </div>
               ))}
             </div>
@@ -213,7 +211,7 @@ function QualityRow({ label, ok, detail }: { label: string; ok: boolean; detail:
   return (
     <div style={styles.qualityRow}>
       <span style={{ ...styles.qualityIcon, color: ok ? '#16A34A' : '#DC2626' }}>
-        {ok ? '✓' : '✗'}
+        {ok ? <Check size={16} /> : <X size={16} />}
       </span>
       <div style={{ flex: 1 }}>
         <span style={styles.qualityLabel}>{label}</span>
@@ -224,10 +222,10 @@ function QualityRow({ label, ok, detail }: { label: string; ok: boolean; detail:
 }
 
 const TIPS = [
-  { icon: '☀️', text: 'Use bright, even lighting — avoid direct sunlight glare' },
-  { icon: '📐', text: 'Keep the strip fully visible and flat in the frame' },
-  { icon: '🎯', text: 'Photograph straight-on, not at an angle' },
-  { icon: '⏱️', text: 'Read within 2 minutes of dipping per package instructions' },
+  'Use even lighting',
+  'Keep the strip flat',
+  'Avoid glare',
+  'Capture straight-on',
 ];
 
 const styles: Record<string, React.CSSProperties> = {
@@ -241,6 +239,16 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: '0px',
+  },
+  headerWrap: {
+    padding: '0 12px',
+    marginBottom: '-6px',
+  },
+  headerInstruction: {
+    fontSize: '15px',
+    color: '#334155',
+    margin: 0,
+    lineHeight: 1.4,
   },
   // Tab bar
   tabBar: {
@@ -272,8 +280,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tabBtnActive: {
     backgroundColor: '#FFFFFF',
-    color: '#0D9488',
+    color: '#8B6A4D',
     boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  },
+  tabIcon: {
+    verticalAlign: 'text-bottom',
+    marginRight: '6px',
   },
   // Error
   errorBanner: {
@@ -286,7 +298,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '14px',
     margin: '0 12px',
   },
-  errorIcon: { fontSize: '20px', flexShrink: 0, marginTop: '1px' },
+  errorIcon: { flexShrink: 0, marginTop: '2px' },
   errorContent: {
     display: 'flex',
     flexDirection: 'column',
@@ -407,13 +419,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    backgroundColor: '#F0FDFA',
+    backgroundColor: '#F6EFE8',
     borderRadius: '12px',
     padding: '10px 14px',
   },
   instructionText: {
     fontSize: '13px',
-    color: '#115E59',
+    color: '#6F4E37',
     lineHeight: 1.4,
     fontWeight: 500,
   },
@@ -421,10 +433,10 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F8FAFC',
     borderRadius: '12px',
     padding: '12px',
-    border: '1px solid #BBF7D0',
+    border: '1px solid #E2E8F0',
   },
   fileIcon: { fontSize: '18px' },
   fileDetails: {
@@ -435,7 +447,7 @@ const styles: Record<string, React.CSSProperties> = {
   fileName: {
     fontSize: '14px',
     fontWeight: 600,
-    color: '#166534',
+    color: '#7C5A3A',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -443,24 +455,23 @@ const styles: Record<string, React.CSSProperties> = {
   },
   fileSize: {
     fontSize: '12px',
-    color: '#16A34A',
+    color: '#64748B',
   },
   checkMark: {
     fontSize: '18px',
-    color: '#16A34A',
+    color: '#8B6A4D',
     fontWeight: 700,
   },
   analyzeBtn: {
     padding: '16px',
     border: 'none',
     borderRadius: '14px',
-    backgroundColor: '#0D9488',
+    backgroundColor: '#8B6A4D',
     color: '#FFFFFF',
     fontSize: '17px',
-    fontWeight: 700,
+    fontWeight: 600,
     width: '100%',
     transition: 'opacity 0.2s',
-    boxShadow: '0 4px 14px rgba(13,148,136,0.35)',
     cursor: 'pointer',
   },
   tipsCard: {
@@ -470,11 +481,9 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
   },
   tipsTitle: {
-    fontSize: '13px',
-    fontWeight: 700,
-    color: '#64748B',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.7px',
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#475569',
     margin: '0 0 12px',
   },
   tipRow: {
@@ -482,10 +491,11 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'flex-start',
     gap: '10px',
     marginBottom: '8px',
-    fontSize: '13px',
+    color: '#64748B',
   },
   tipText: {
-    color: '#374151',
-    lineHeight: 1.5,
+    fontSize: '13px',
+    lineHeight: 1.45,
+    color: '#475569',
   },
 };

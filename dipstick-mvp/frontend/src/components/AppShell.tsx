@@ -93,7 +93,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statusBar: {
     height: '44px',
-    backgroundColor: '#0F2744',
+    backgroundColor: '#6F4E37',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -128,7 +128,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     background: '#F1F5F9',
     borderRadius: '50%',
-    color: '#1E293B',
+    color: '#6F4E37',
     fontSize: '20px',
     cursor: 'pointer',
     display: 'flex',
@@ -136,7 +136,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
   },
   headerTitle: {
-    color: '#1E293B',
+    color: '#6F4E37',
     fontSize: '17px',
     fontWeight: 700,
     letterSpacing: '0.3px',

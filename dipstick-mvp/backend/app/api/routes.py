@@ -24,12 +24,13 @@ from typing import Optional
 
 from app.models.dipstick import (
     DipstickValues, AnalysisResponse, FHIRIntegrationStatus, PostedResource,
-    ClinicalIntake, ImageValidation, ImageValidationStatus,
+    CalibrationResponse, ClinicalIntake, ImageValidation, ImageValidationStatus,
 )
 from app.services.image_processing import (
-    extract_dipstick_values, get_mock_values, ImageProcessingResult,
+    extract_calibration_baseline, extract_dipstick_values, get_mock_values, ImageProcessingResult,
 )
 from app.services.capture import CaptureMode
+from app.services.calibration import get_calibration, save_calibration
 from app.services.interpretation import interpret
 from app.services.explanation import generate_explanation
 from app.fhir.mapper import build_fhir_bundle
@@ -40,6 +41,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 MOCK_DATA_PATH = Path(__file__).parent.parent.parent / "mock_data" / "demo_results.json"
+
+
+def _parse_bool_form(value: Optional[str], default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +111,46 @@ async def fhir_status():
 
 
 # ---------------------------------------------------------------------------
+# POST /api/calibrate — unused strip baseline
+# ---------------------------------------------------------------------------
+
+@router.post("/calibrate", response_model=CalibrationResponse)
+async def calibrate(
+    image: UploadFile = File(...),
+):
+    content_type = image.content_type or ""
+    if not content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Uploaded file must be an image. Got: {content_type}"
+        )
+
+    calibration_session_id = str(uuid.uuid4())
+    image_bytes = await image.read()
+    baseline = extract_calibration_baseline(image_bytes)
+
+    if baseline is None:
+        logger.warning("[%s] Calibration failed: pads/background not detected", calibration_session_id)
+        return CalibrationResponse(
+            session_id=calibration_session_id,
+            pads_detected=False,
+        )
+
+    baseline_pads, baseline_background = baseline
+    save_calibration(
+        session_id=calibration_session_id,
+        baseline_pads=baseline_pads,
+        baseline_background=baseline_background,
+    )
+    logger.info("[%s] Calibration stored successfully", calibration_session_id)
+
+    return CalibrationResponse(
+        session_id=calibration_session_id,
+        pads_detected=True,
+    )
+
+
+# ---------------------------------------------------------------------------
 # POST /api/analyze — main pipeline
 # ---------------------------------------------------------------------------
 
@@ -112,6 +159,8 @@ async def analyze(
     image: UploadFile = File(...),
     intake: Optional[str] = Form(default=None),
     capture_mode: Optional[str] = Form(default="free_capture"),
+    session_id: Optional[str] = Form(default=None),
+    reaction_skipped: Optional[str] = Form(default=None),
 ):
     """
     Full dipstick analysis pipeline (FAIL-CLOSED):
@@ -139,8 +188,10 @@ async def analyze(
         except Exception as e:
             logger.warning(f"Could not parse intake: {e}")
 
-    session_id = str(uuid.uuid4())
-    logger.info(f"[{session_id}] Analysis started — file: {image.filename}")
+    analysis_session_id = str(uuid.uuid4())
+    reaction_time_verified = not _parse_bool_form(reaction_skipped, default=False)
+    calibration = get_calibration(session_id) if session_id else None
+    logger.info(f"[{analysis_session_id}] Analysis started — file: {image.filename}")
 
     # 1. Read bytes
     image_bytes = await image.read()
@@ -153,12 +204,16 @@ async def analyze(
 
     # 2. Image processing — FAIL-CLOSED
     try:
-        result: ImageProcessingResult = extract_dipstick_values(image_bytes, mode)
+        result: ImageProcessingResult = extract_dipstick_values(
+            image_bytes,
+            mode=mode,
+            calibration=calibration,
+        )
     except Exception as e:
         # Unexpected crash in CV pipeline — return structured error, not mock data
-        logger.error(f"[{session_id}] Image processing crashed: {e}")
+        logger.error(f"[{analysis_session_id}] Image processing crashed: {e}")
         return AnalysisResponse(
-            session_id=session_id,
+            session_id=analysis_session_id,
             image_validation=ImageValidation(
                 status=ImageValidationStatus.PROCESSING_ERROR,
                 is_valid=False,
@@ -166,25 +221,27 @@ async def analyze(
                 strip_detected=False,
                 failure_reason=f"Image processing failed unexpectedly: {e}",
             ),
+            reaction_time_verified=reaction_time_verified,
         )
 
     # --- GATE: if image validation failed, stop here. ---
     # No interpretation, no explanation, no FHIR posting.
     if not result.validation.is_valid:
         logger.warning(
-            f"[{session_id}] Image rejected: {result.validation.status.value} "
+            f"[{analysis_session_id}] Image rejected: {result.validation.status.value} "
             f"— {result.validation.failure_reason}"
         )
         return AnalysisResponse(
-            session_id=session_id,
+            session_id=analysis_session_id,
             image_validation=result.validation,
+            reaction_time_verified=reaction_time_verified,
         )
 
     # 3. Parse validated values
     try:
         dipstick_values = DipstickValues(**result.values)
     except Exception as e:
-        logger.error(f"[{session_id}] Value parsing error: {e}")
+        logger.error(f"[{analysis_session_id}] Value parsing error: {e}")
         raise HTTPException(status_code=500, detail="Failed to parse dipstick values")
 
     # 4. Interpretation (with optional clinical intake context)
@@ -204,30 +261,31 @@ async def analyze(
     fhir_bundle = build_fhir_bundle(
         dipstick_values=dipstick_values,
         interpretation=interpretation,
-        session_id=session_id,
+        session_id=analysis_session_id,
         image_b64=image_b64,
         intake=clinical_intake,
     )
 
     # 7. POST to InterSystems FHIR server (non-blocking failure)
-    logger.info(f"[{session_id}] Posting resources to InterSystems FHIR server…")
+    logger.info(f"[{analysis_session_id}] Posting resources to InterSystems FHIR server…")
     raw_status = await post_dipstick_resources(fhir_bundle)
     integration_status = _parse_integration_status(raw_status)
 
     logger.info(
-        f"[{session_id}] Complete — urgency={interpretation.urgency.value}, "
+        f"[{analysis_session_id}] Complete — urgency={interpretation.urgency.value}, "
         f"flags={len(interpretation.clinical_flags)}, "
         f"fhir_posted={len(integration_status.resources_posted)}, "
         f"fhir_errors={len(integration_status.errors)}"
     )
 
     return AnalysisResponse(
-        session_id=session_id,
+        session_id=analysis_session_id,
         image_validation=result.validation,
         dipstick_values=dipstick_values,
         interpretation=interpretation,
         explanation=explanation,
         fhir_bundle=fhir_bundle,
+        reaction_time_verified=reaction_time_verified,
         integration_status=integration_status,
     )
 
@@ -295,6 +353,7 @@ async def demo():
         interpretation=interpretation,
         explanation=explanation,
         fhir_bundle=fhir_bundle,
+        reaction_time_verified=True,
         integration_status=integration_status,
     )
 

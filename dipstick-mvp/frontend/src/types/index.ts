@@ -185,6 +185,11 @@ export interface ImageValidation {
   capture_quality: CaptureQuality | null;
 }
 
+export interface CalibrationResponse {
+  session_id: string;
+  pads_detected: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Full API response
 // ---------------------------------------------------------------------------
@@ -197,6 +202,7 @@ export interface AnalysisResponse {
   interpretation: InterpretationResult | null;
   explanation: Explanation | null;
   fhir_bundle: Record<string, unknown> | null;
+  reaction_time_verified: boolean;
   image_preview_url?: string;
   integration_status?: FHIRIntegrationStatus;
 }
@@ -243,6 +249,8 @@ export type AppScreen =
   | 'landing'
   | 'consent'
   | 'intake'
+  | 'calibration'
+  | 'timer'
   | 'capture'
   | 'processing'
   | 'results'
@@ -258,23 +266,25 @@ export interface AppState {
   error: string | null;
   intake: ClinicalIntake;
   captureQuality: CaptureQuality | null;
+  calibrationSessionId: string | null;
+  reactionSkipped: boolean;
 }
 
 // ---------------------------------------------------------------------------
 // UI helpers
 // ---------------------------------------------------------------------------
 
-export const BRAND_TEAL = '#0D9488';
-export const BRAND_NAVY = '#0F2744';
+export const BRAND_TEAL = '#8B6A4D';
+export const BRAND_NAVY = '#6F4E37';
 
 export const URGENCY_COLOR: Record<UrgencyLevel, string> = {
-  low:      '#0D9488',   // teal
+  low:      '#8B6A4D',   // kidney-brown
   moderate: '#D97706',   // amber-600
   high:     '#DC2626',   // red-600
 };
 
 export const URGENCY_BG: Record<UrgencyLevel, string> = {
-  low:      '#F0FDF4',   // green-50
+  low:      '#F6EFE8',   // warm brown tint
   moderate: '#FEF3C7',   // amber-100
   high:     '#FEE2E2',   // red-100
 };
@@ -286,13 +296,13 @@ export const URGENCY_LABEL: Record<UrgencyLevel, string> = {
 };
 
 export const SEVERITY_COLOR: Record<FlagSeverity, string> = {
-  info:     '#2563EB',  // blue-600
+  info:     '#8B6A4D',  // kidney-brown
   warning:  '#D97706',  // amber-600
   critical: '#DC2626',  // red-600
 };
 
 export const SEVERITY_BG: Record<FlagSeverity, string> = {
-  info:     '#EFF6FF',  // blue-50
+  info:     '#F6EFE8',  // warm brown tint
   warning:  '#FFFBEB',  // amber-50
   critical: '#FFF1F2',  // rose-50
 };

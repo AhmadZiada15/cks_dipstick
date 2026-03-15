@@ -6,7 +6,13 @@
  */
 
 import axios, { AxiosError } from 'axios';
-import type { AnalysisResponse, PatientHistoryEntry, FhirStatusResponse, ClinicalIntake } from '../types';
+import type {
+  AnalysisResponse,
+  CalibrationResponse,
+  PatientHistoryEntry,
+  FhirStatusResponse,
+  ClinicalIntake,
+} from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? '';  // empty = use Vite proxy
 
@@ -32,18 +38,42 @@ function extractErrorMessage(err: unknown, fallback: string): string {
 // Analyze: POST /api/analyze
 // ---------------------------------------------------------------------------
 
+export async function calibrateImage(file: File): Promise<CalibrationResponse> {
+  const form = new FormData();
+  form.append('image', file);
+
+  try {
+    const response = await api.post<CalibrationResponse>('/api/calibrate', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, 'Calibration failed. Please try again.'));
+  }
+}
+
 export async function analyzeImage(
   file: File,
-  intake?: ClinicalIntake,
-  captureMode?: string,
+  options?: {
+    intake?: ClinicalIntake;
+    sessionId?: string | null;
+    reactionSkipped?: boolean;
+    captureMode?: string;
+  },
 ): Promise<AnalysisResponse> {
   const form = new FormData();
   form.append('image', file);
-  if (intake) {
-    form.append('intake', JSON.stringify(intake));
+  if (options?.intake) {
+    form.append('intake', JSON.stringify(options.intake));
   }
-  if (captureMode) {
-    form.append('capture_mode', captureMode);
+  if (options?.sessionId) {
+    form.append('session_id', options.sessionId);
+  }
+  if (typeof options?.reactionSkipped === 'boolean') {
+    form.append('reaction_skipped', String(options.reactionSkipped));
+  }
+  if (options?.captureMode) {
+    form.append('capture_mode', options.captureMode);
   }
 
   try {

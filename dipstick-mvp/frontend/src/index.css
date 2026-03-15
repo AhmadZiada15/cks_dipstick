@@ -9,13 +9,13 @@
 }
 
 :root {
-  --color-primary:    #4F46E5;
-  --color-primary-lt: #EEF2FF;
+  --color-primary:    #8B6A4D;
+  --color-primary-lt: #F6EFE8;
   --color-surface:    #FFFFFF;
-  --color-bg:         #F1F5F9;
-  --color-text:       #1E293B;
-  --color-muted:      #64748B;
-  --color-border:     #E2E8F0;
+  --color-bg:         #F6F3EF;
+  --color-text:       #4E3A2A;
+  --color-muted:      #7B6A58;
+  --color-border:     #E7DDD3;
   --radius-card:      14px;
   --shadow-card:      0 1px 4px rgba(0,0,0,0.08);
   font-size: 16px;
